@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Linearizzazione</title>
+  <meta name="viewport" content="width=device-width, initial-scale=0.8">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+  <div id="sidebar-placeholder"></div>
+  <script>
+    fetch('/static/partials/sidebar.html')
+      .then(res => res.text())
+      .then(html => {
+        document.getElementById('sidebar-placeholder').innerHTML = html;
+
+        // Definisci openNav e closeNav dopo che la sidebar è stata caricata
+        window.openNav = function () {
+          const sidebar = document.getElementById("mySidebar");
+          if (sidebar) sidebar.style.width = "250px";
+        };
+
+        window.closeNav = function () {
+          const sidebar = document.getElementById("mySidebar");
+          if (sidebar) sidebar.style.width = "0";
+        };
+      });
+  </script>
+  
+  <div id="main">
+    <div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 0px;">
+        <button class="openbtn" onclick="openNav()" style="padding-top: 0px;" >☰</button>
+        <div>
+          <h2 style="margin: 0; font-size: 25px;">Linearizzazione di sistemi non‑lineari</h2>
+          <p class="description" style="margin-bottom: 0;">
+            Inserisci il numero di equazioni del tuo sistema (fino a 4) e le funzioni
+            \(f_i(x,u)\). Ricorda di inserire esplicitamente il simbolo * per indicare le moltiplicazioni (es. scrivi \(x * u\), non \(xu\)).
+          </p>
+          <p class="description" style="margin-top: 4px;">Eventuali celle vuote verranno considerate come zero.</p>
+          <div style="margin:0px 0;font-size:16px;">
+    <label for="matrixSize">Numero di equazioni:</label>
+    <select id="matrixSize">
+      <option value="1">1</option>
+      <option value="2" selected>2</option>
+      <option value="3">3</option>
+      <option value="4">4</option>
+    </select>
+    <br><br>
+    <label for="domainSelect">Dominio:</label>
+    <select id="domainSelect">
+      <option value="typeContinuo" selected>Continuo (T = ℝ)</option>
+      <option value="typeDiscreto">Discreto (T = ℤ)</option>
+    </select>
+    <br><br>
+    <label for="inputUe">Condizione di equilibrio \( u_e = \)</label>
+    <input id="inputUe" type="text" placeholder="es. 0" style="width: 100px; font-size: 16px; text-align: center;">
+  </div>
+        </div>
+      </div>
+
+      <div class="container">
+        <main class="content">
+      <!-- ► Visualizzazione sistema dinamico ◄ -->
+      <div id="formulaSistema" style="text-align:center; font-size: 20px; margin-top: 0px; margin-bottom: 10px;">
+        \\[
+          \\begin{cases}
+          \\dot{x}(t) = f(x(t), u(t)) \\\\
+          y(t) = h(x(t), u(t))
+          \\end{cases}
+        \\]
+      </div>
+ 
+      <!-- ► Matrice colonna dinamica f(x,u) ◄ -->
+      <div class="matrix-group" style="text-align: center; margin-top: 0px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
+        <div class="centered-matrix">
+          <span id="matrixLabelA" style="font-size: 20px; display: block; text-align: center;"></span>
+          <span id="leftBracketA" style="font-size: 25px;"></span>
+          <div id="matrixA" class="matrix"></div>
+          <span id="rightBracketA" style="font-size: 25px;"></span>
+        </div>
+      </div>
+
+      <div style="text-align: center; margin-top: 10px;">
+        <span id="labelHXU" style="font-size: 20px;">\( h(x, u) = \)</span>
+        <input type="text" id="equazioneUscita" name="equazioneUscita"
+               style="width: 230px; font-size: 18px; text-align: center;">
+      </div>
+
+      <form id="equazioniForm" onsubmit="return false;">
+        <div style="margin-top: 20px; text-align: center;">
+          <button onclick="invioLinearizzazione()">Calcola linearizzazione</button>
+        </div>
+      </form>
+      <div id="output" class="output">
+        <p style="text-align:center; color:#888; font-style:italic;">Nessun input ricevuto...</p>
+      </div>
+        </main>
+      </div> <!-- chiusura .container -->
+    </div> <!-- chiusura #main -->
+
+  <!-- ► JS LOGIC ◄ -->
+  <script>
+    function rebuildMatrix() {
+      const size = parseInt(document.getElementById("matrixSize").value);
+      const container = document.getElementById("matrixA");
+      container.style.display = "grid";
+      container.style.gridTemplateColumns = "30px";
+      container.style.gridTemplateRows = `repeat(${size}, 30px)`;
+      container.innerHTML = "";
+
+      // Crea dinamicamente i campi di input per la colonna
+      for (let i = 0; i < size; i++) {
+        const input = document.createElement("input");
+        input.type = "text";
+        input.id = `cell_A_${i}_0`;
+        input.style.width = "200px";
+        input.style.height = "30px";
+        input.style.textAlign = "center";
+        input.style.fontSize = window.innerWidth <= 768 ? "14px" : "20px";
+        input.style.boxSizing = "border-box";
+      
+ 
+        container.appendChild(input);
+      }
+
+      // Brackets dinamici per la matrice colonna
+      const phantom = Array.from({ length: size }, () => "0").join(" \\\\ ");
+      // Adjust bracket font size based on matrix size
+      const leftBracket = document.getElementById("leftBracketA");
+      const rightBracket = document.getElementById("rightBracketA");
+      if (size === 1) {
+        leftBracket.style.fontSize = "32px";
+        rightBracket.style.fontSize = "32px";
+      } else {
+        leftBracket.style.fontSize = "25px";
+        rightBracket.style.fontSize = "25px";
+      }
+      const vphantom = `\\left[ \\vphantom{\\begin{array}{c} ${phantom} \\end{array}} \\right.`;
+      const rphantom = `\\left. \\vphantom{\\begin{array}{c} ${phantom} \\end{array}} \\hspace{4.5cm} \\right]\\,`;
+
+      document.getElementById("matrixLabelA").innerHTML = "\\(f(x,u) = \\)";
+      document.getElementById("leftBracketA").innerHTML = `\\(${vphantom}\\)`;
+      document.getElementById("rightBracketA").innerHTML = `\\(${rphantom}\\)`;
+      document.getElementById("rightBracketA").style.pointerEvents = "none";
+
+      MathJax.typesetPromise();
+    }
+
+    // Assicurati che il listener scatti sul select
+    document.getElementById("matrixSize").addEventListener("change", rebuildMatrix);
+    window.addEventListener("DOMContentLoaded", rebuildMatrix);
+
+
+    /* Invio al backend */
+    function invioLinearizzazione(){
+      mostraSistemaInserito();
+      const size=parseInt(document.getElementById('matrixSize').value);
+      const eqs=[];
+      for(let i=0;i<size;i++){
+        const v=document.getElementById(`cell_A_${i}_0`).value.trim()||'0';
+        eqs.push(v);
+      }
+      const h = document.getElementById('equazioneUscita').value||'0';
+      const dominio = document.getElementById('domainSelect').value;
+      const u_e = document.getElementById("inputUe").value.trim() || "0";
+      fetch('/api/linearizzazione', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          equazioni: eqs,
+          equazioneUscita: h,
+          valoreIngresso: u_e,
+          dominio: dominio === 'typeDiscreto' ? 'typeDiscreto' : 'typeContinuo'
+        })
+      })
+      .then(r=>r.json())
+      .then(res=>{
+        if(res.success){
+          showRisultato(res);
+        } else {
+          // Append error below existing content
+          const out = document.getElementById('output');
+          out.innerHTML += `<p style="color:red">Errore durante il calcolo: ${res.errore}</p>`;
+        }
+      })
+      .catch(err=>{
+        const out=document.getElementById('output');
+        out.innerHTML += `<p style="color:red">Errore durante il calcolo: ${err.message}</p>`;
+      });
+    }
+
+    function mostraSistemaInserito() {
+      const dominio = document.getElementById('domainSelect').value;
+      const isDiscrete = dominio === 'typeDiscreto';
+
+      const size = parseInt(document.getElementById('matrixSize').value);
+      const eqs = [];
+      for (let i = 0; i < size; i++) {
+        let val = document.getElementById(`cell_A_${i}_0`).value.trim() || '0';
+        val = val.replace(/\*/g, ''); // Rimuove gli asterischi per visualizzazione implicita
+        if (isDiscrete) {
+          eqs.push(`x_{${i+1}}(t+1) &= ${val}`);
+        } else {
+          eqs.push(`\\dot{x}_{${i+1}}(t) &= ${val}`);
+        }
+      }
+      const h = document.getElementById('equazioneUscita').value.trim() || '0';
+      const eqsLatex = eqs.map(e => e).join(' \\\\ ');
+      const hLatex = `y(t) &= ${h}`;
+      const sistema = `
+        <p class="step-title"><b>0)</b> Sistema inserito:</p>
+        <p class="centered-math">\\[
+          \\left\\{
+          \\begin{aligned}
+            ${eqsLatex} \\\\
+            ${hLatex}
+          \\end{aligned}
+          \\right.
+        \\]
+        </p>
+      `;
+      document.getElementById('output').innerHTML = sistema;
+      MathJax.typesetPromise([document.getElementById('output')]);
+    }
+    function showRisultato(res){
+      const out = document.getElementById('output');
+      if(!res.success){ out.innerHTML='<p style="color:red">'+res.errore+'</p>'; return;}
+      
+      let stepsHtml = "";
+      if (Array.isArray(res.latex)) {
+        stepsHtml = res.latex.map((step, idx) => `
+          <p class="step-title"><b>${idx + 1})</b> ${step.title}</p>
+          <p class="centered-math">\\[${step.content}\\]</p>
+        `).join('');
+      }
+
+      out.innerHTML += stepsHtml;
+      MathJax.typesetPromise([out]);
+    }
+</script>
+<script>
+  function aggiornaFormulaSistema() {
+    const dominio = document.getElementById('domainSelect').value;
+    const formulaDiv = document.getElementById('formulaSistema');
+
+    if (dominio === 'typeDiscreto') {
+      formulaDiv.innerHTML = `\\[
+        \\begin{cases}
+        x(t+1) = f(x(t), u(t)) \\\\
+        y(t) = h(x(t), u(t))
+        \\end{cases}
+      \\]`;
+    } else {
+      formulaDiv.innerHTML = `\\[
+        \\begin{cases}
+        \\dot{x}(t) = f(x(t), u(t)) \\\\
+        y(t) = h(x(t), u(t))
+        \\end{cases}
+      \\]`;
+    }
+    
+    MathJax.typesetPromise([formulaDiv]);
+  }
+
+  document.getElementById('domainSelect').addEventListener('change', aggiornaFormulaSistema);
+  window.addEventListener('DOMContentLoaded', aggiornaFormulaSistema);
+</script>
+</body>
+</html>

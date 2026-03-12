@@ -1,0 +1,264 @@
+from flask import Blueprint, request, jsonify
+import sympy as sp
+import re
+from sympy import Matrix, symbols, simplify, sympify, Eq, solve
+from ast import literal_eval
+from sympy.parsing.sympy_parser import (
+    parse_expr, standard_transformations,
+    implicit_multiplication_application,
+    convert_xor, function_exponentiation
+)
+transformations = standard_transformations + (
+    implicit_multiplication_application,
+    convert_xor,
+    function_exponentiation
+)
+
+
+def sostituisci_pedici(equation_str):
+    """
+    Converte 'x_1', 'x_{2}', ecc. in 'x1', 'x2', ...
+    """
+    def replacer(match):
+        index = match.group(1) or match.group(2)
+        return f"x{index}"
+    equation_str = re.sub(r"x_(?:\{(\d+)\}|\s*(\d+))", replacer, equation_str)
+    return equation_str
+
+linearizzazione_bp = Blueprint("linearizzazione", __name__)
+
+@linearizzazione_bp.route('/api/linearizzazione', methods=['POST'])
+def linearizzazione():
+    try:
+        # Estrai i dati dal JSON
+        data = request.get_json()
+        equazioni = data.get('equazioni', [])
+        equazione_uscita = data.get('equazioneUscita', '')
+        valore_ingresso_str = data.get('valoreIngresso', '0')
+        tipo_dominio = data.get('dominio', '')
+
+
+        valore_ingresso = sympify(valore_ingresso_str)
+        print("DEBUG: valore_ingresso =", valore_ingresso)
+
+        numero_equazioni = len(equazioni)
+
+        # Definisci le variabili simboliche x1, x2, ..., xn
+        x = symbols(f'x1:{numero_equazioni+1}')  # Genera x1, x2, ..., xn
+        u = symbols('u')
+
+        # Pre-elabora le equazioni
+        eqs_sostituite = []
+        for eq in equazioni:
+            try:
+                eq_modificata = sostituisci_pedici(eq)
+                local_dict = {f'x{i+1}': x[i] for i in range(numero_equazioni)}
+                local_dict['u'] = u
+                print("DEBUG: local_dict =", local_dict)
+                expr = parse_expr(eq_modificata, transformations=transformations, local_dict=local_dict)
+
+                # Sostituisci u con il valore di ingresso
+                expr = expr.subs(u, valore_ingresso)
+
+                # mapping/subs non più necessario grazie a local_dict
+                # mapping = {sp.Symbol(f'x{i+1}'): x[i] for i in range(numero_equazioni)}
+                # expr = expr.subs(mapping)
+
+                eqs_sostituite.append(expr)
+            except Exception as e:
+                return jsonify({
+                    "success": False,
+                    "errore": f"Errore nell'elaborazione dell'equazione '{eq}': {str(e)}"
+                })
+
+        print("DEBUG: eqs_sostituite =", eqs_sostituite)
+
+        # Costruisci le equazioni per il punto di equilibrio
+        if tipo_dominio == 'typeContinuo':
+            eqs_punto_di_equilibrio = [Eq(eq, 0) for eq in eqs_sostituite]
+        elif tipo_dominio == 'typeDiscreto':
+            eqs_punto_di_equilibrio = [Eq(x[i], eq) for i, eq in enumerate(eqs_sostituite)]
+        else:
+            return jsonify({"success": False, "errore": "Selezionare un tipo di dominio valido."})
+
+     
+
+        # DEBUG: stampa il sistema di equazioni in forma Python e LaTeX
+        print("DEBUG: Risolvo il sistema:")
+        for eq in eqs_punto_di_equilibrio:
+            print("   ", eq, "  (LaTeX:", sp.latex(eq), ")")
+        # Risolvi il sistema
+        soluzioni = solve(eqs_punto_di_equilibrio, dict=True)
+        # Filtra solo soluzioni reali (ignora quelle con parte immaginaria)
+        soluzioni = [
+            sol for sol in soluzioni
+            if all(sp.im(val) == 0 for val in sol.values())
+        ]
+        # Blocco diagnostico per stampare il contenuto delle equazioni e delle soluzioni
+        print("Equazioni punto di equilibrio:", eqs_punto_di_equilibrio)
+        print("Soluzioni trovate:", soluzioni)
+        # Migliora la capacità di trovare soluzioni simboliche parametriche o, in caso estremo, ricade su fallback manuale
+        if not soluzioni:
+            # Tenta una soluzione simbolica con solve(..., set=True) per ottenere relazioni parametriche
+            sol_set = solve(eqs_punto_di_equilibrio, dict=True, set=True)
+            if isinstance(sol_set, tuple) and len(sol_set) == 2 and sol_set[1]:
+                soluzione_param = list(sol_set[1])[0]
+                soluzioni = [soluzione_param]
+            else:
+                # fallback: crea simboli liberi
+                parametri_liberi = [s for s in x if all(s not in eq.free_symbols for eq in eqs_punto_di_equilibrio)]
+                simboli_parametrici = symbols(f'c1:{len(parametri_liberi)+1}')
+                sol_dinamica = {s: simboli_parametrici[i] for i, s in enumerate(parametri_liberi)}
+                for i, s in enumerate(x):
+                    if s not in sol_dinamica:
+                        sol_found = solve(eqs_punto_di_equilibrio, s, dict=False)
+                        sol_dinamica[s] = sol_found[0] if sol_found else 0
+                soluzioni = [sol_dinamica]
+
+        # Nuovo blocco: accetta anche soluzioni simboliche, mantenendo consistenza
+        soluzioni_reali = []
+        for sol in soluzioni:
+            sol_dict = {}
+            for i, var in enumerate(x):
+                chiave = f"x_{i+1}"
+                valore = sol.get(var, None)
+                if valore is None:
+                    # parametro libero: creiamo un Symbol c_{i+1}
+                    sol_dict[chiave] = sp.Symbol(f"c_{i+1}")
+                else: 
+                    # semplifichiamo e manteniamo oggetti SymPy (Symbol, Rational, etc.)
+                    sol_dict[chiave] = sp.nsimplify(valore, rational=True)
+            soluzioni_reali.append(sol_dict)
+
+        # Sostituisci simboli con espressioni semplici se sono riferimenti ad altri simboli o costanti
+        for sol in soluzioni_reali:
+            changed = True
+            while changed:
+                changed = False
+                for k, v in sol.items():
+                    if v in sol and sol[v] != v:
+                        sol[k] = sol[v]
+                        changed = True
+
+        # Step 1: Punto di equilibrio
+        # Build LaTeX for equilibrium equations and solution
+        eqs_latex = " \\\\ ".join([sp.latex(eq) for eq in eqs_punto_di_equilibrio])
+        latex_steps = []
+        for idx, sol in enumerate(soluzioni_reali):
+            # semplifica espressioni tra variabili nel punto di lavoro
+            changed = True
+            while changed:
+                changed = False
+                for k, v in sol.items():
+                    if v in sol and sol[v] != v:
+                        sol[k] = sol[v]
+                        changed = True
+            if tipo_dominio == "typeContinuo":
+                descrizione_dominio = r"\mathbb{T} = \mathbb{R}\implies f(\mathbf{x}_e, u_e) = 0 \implies "
+            else:
+                descrizione_dominio = r"\mathbb{T} = \mathbb{Z}\implies f(\mathbf{x}_e, u_e) = \mathbf{x}_e \implies "
+
+            # costruisci dizionario di sostituzioni per x_i → c_i
+            subs_dict = { x[j]: sp.Symbol(f"c_{j+1}") for j in range(numero_equazioni) }
+            descrizione_latex = (
+                descrizione_dominio
+                + r"\mathbf{x}_e = \left("
+                + ", ".join(sp.latex(v.subs(subs_dict)) for v in sol.values())
+                + r"\right)"
+            )
+
+            # Rileva tutti i simboli c_i anche dentro espressioni complesse
+            const_set = {c for v in sol.values() for c in v.free_symbols if c.name.startswith("c_")}
+            if const_set:
+                const_latex = ", ".join(sp.latex(c) for c in sorted(const_set, key=lambda s: s.name))
+                descrizione_latex += " \\ \\operatorname{con}\\," + const_latex + " \\in \\mathbb{R}"
+
+            latex_steps.append({
+                "title": f"Punto di equilibrio {idx + 1}:",
+                "content": descrizione_latex
+            })
+
+        # Verifica se ci sono soluzioni reali
+        if not soluzioni_reali:
+            return jsonify({
+                "success": False,
+                "errore": "Nessuna soluzione reale trovata per il punto di equilibrio.",
+                "suggerimento": "Verifica che: 1) Le equazioni siano corrette 2) Il valore di ingresso sia compatibile 3) Il sistema ammetta soluzioni reali",
+                "debug_soluzioni_raw": [str(s) for s in soluzioni]
+            })
+
+        soluzione_latex = ",\\quad ".join([f"{k} = {v}" for k, v in soluzioni_reali[0].items()])
+
+
+        from sympy import diff, Matrix
+        def matrix_to_latex(mat):
+            mat = sp.nsimplify(mat, rational=True)
+            rows = [" & ".join(sp.latex(el) for el in row) for row in mat.tolist()]
+            return "\\begin{bmatrix}" + " \\\\ ".join(rows) + "\\end{bmatrix}"
+
+        for idx, sol in enumerate(soluzioni_reali):
+            punto_eq_subs = {}
+            for i in range(numero_equazioni):
+                chiave = f"x_{i+1}"
+                valore = sol[chiave]
+                try:
+                    punto_eq_subs[x[i]] = sp.Rational(valore)
+                except:
+                    punto_eq_subs[x[i]] = symbols(str(valore))
+
+            try:
+                f_exprs = []
+                for eq in equazioni:
+                    eq_modificata = sostituisci_pedici(eq)
+                    local_dict = {f'x{i+1}': x[i] for i in range(numero_equazioni)}
+                    local_dict['u'] = u
+                    expr = parse_expr(eq_modificata, transformations=transformations, local_dict=local_dict)
+                    f_exprs.append(expr)
+
+                A = Matrix([[diff(expr, x_var) for x_var in x] for expr in f_exprs]).subs(punto_eq_subs).subs(u, valore_ingresso).evalf()
+                B = Matrix([[diff(expr, u)] for expr in f_exprs]).subs(punto_eq_subs).subs(u, valore_ingresso).evalf()
+
+                h_uscita_mod = sostituisci_pedici(equazione_uscita)
+                local_dict = {f'x{i+1}': x[i] for i in range(numero_equazioni)}
+                local_dict['u'] = u
+                h_uscita = parse_expr(h_uscita_mod, transformations=transformations, local_dict=local_dict).subs(u, valore_ingresso)
+                C = Matrix([[diff(h_uscita, x_var) for x_var in x]]).subs(punto_eq_subs).evalf()
+
+                h_orig = parse_expr(h_uscita_mod, transformations=transformations, local_dict=local_dict)
+                D = Matrix([[diff(h_orig, u)]]).subs({**punto_eq_subs, u: valore_ingresso}).evalf()
+
+                contenuto_matrici = (
+                    r"A = " + matrix_to_latex(A) + r",\quad B = " + matrix_to_latex(B) + r" \\ " + r",\quad C = " + matrix_to_latex(C) + r",\quad D = " + matrix_to_latex(D)
+                )
+
+                # Usa lo stesso subs_dict di sopra per sostituire x_i → c_i
+                xe_latex = ", ".join(sp.latex(v.subs(subs_dict)) for v in sol.values())
+                title = f"Linearizzazione relativa a \\( \\mathbf{{x}}_e = \\left({xe_latex}\\right) \\):"
+                latex_steps.append({
+                    "title": title,
+                    "content": contenuto_matrici
+                })
+
+            except Exception as e:
+                return jsonify({
+                    "success": False,
+                    "errore": f"Errore durante la linearizzazione del punto {idx+1}: {str(e)}"
+                })
+
+        return jsonify({
+            "success": True,
+            "latex": latex_steps,
+            "messaggio": "Punto di equilibrio calcolato correttamente.",
+            "punto_equilibrio": [{k: str(v) for k, v in sol.items()} for sol in soluzioni_reali],
+            "punto_equilibrio_tex": soluzione_latex,
+            "valore_ingresso": str(valore_ingresso),
+            "equazioni": equazioni,
+            "tipo_dominio": tipo_dominio,
+            "numero_equazioni": numero_equazioni
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "errore": f"Errore durante il calcolo: {str(e)}"
+        })

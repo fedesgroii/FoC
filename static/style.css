@@ -1,0 +1,255 @@
+body {
+  margin: 0;
+  font-family: Georgia, serif;
+}
+
+
+.content h2 {
+  margin-bottom: 5px;
+  font-size: 26px;
+  color: #000;
+}
+
+.content p.description {
+  margin-top: 0px;
+  font-size: 16px;
+}
+
+.output {
+  margin-top: 20px;
+}
+
+.step-title {
+  font-size: 18px;
+  text-align: left;
+  margin-bottom: 0.5em;
+}
+
+.centered-math {
+  text-align: center;
+}
+
+button + button {
+  margin-left: 10px;
+}
+
+.container {
+  height: 100vh;
+  transition: margin-top 0.3s ease;
+}
+
+
+.content {
+  flex-grow: 1;
+  padding: 10px;
+  overflow-y: auto;
+  transition: margin-left 0.3s ease;
+}
+
+
+select {
+  font-size: 14px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  margin-left: 8px;
+}
+
+.matrix {
+  display: grid;
+  grid-auto-flow: row;
+  gap: 2px;
+}
+
+.centered-matrix {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 0;
+  margin-top: 20px;
+}
+
+.centered-matrix span {
+  font-size: 20px;
+}
+
+#output {
+  background-color: white;
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 20px;
+  max-width: 700px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-left: auto;
+  margin-right: auto;
+  text-align: left;
+}
+
+.button-area {
+  margin-top: 20px;
+  text-align: center;
+}
+
+button {
+  font-size: 16px;
+  padding: 6px 12px;
+  background-color: #636569;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+
+button:not(.btn):not(.sidebar-toggle):not(.openbtn) {
+  all: unset;
+  display: inline-block;
+  padding: 6px 12px;
+  background-color: #e0e0e0;
+  border: 1px solid #999;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: Georgia, serif;
+  font-size: 16px;
+  text-align: center;
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+button:not(.btn):not(.sidebar-toggle):hover {
+  background-color: #444 !important;
+  color: #fff !important;
+  border-color: #888 !important;
+}
+
+
+@media (min-width: 769px) {
+  .content {
+    padding-top: 1.2rem;
+    padding-left: 1rem;
+  }
+}
+
+/* The sidebar menu */
+.sidebar {
+  height: 100%; /* 100% Full-height */
+  width: 0; /* 0 width - change this with JavaScript */
+  position: fixed; /* Stay in place */
+  z-index: 1; /* Stay on top */
+  top: 0;
+  left: 0;
+   background-color: #f10808 !important;
+  overflow-x: hidden; /* Disable horizontal scroll */
+  padding-top: 60px; /* Place content 60px from the top */
+  transition: 0.5s; /* 0.5 second transition effect to slide in the sidebar */
+}
+
+/* The sidebar links */
+.sidebar a {
+  padding: 8px 8px 8px 32px;
+  text-decoration: none;
+  font-size: 16px;
+  color: #818181;
+  display: block;
+  transition: 0.3s;
+}
+
+/* When you mouse over the navigation links, change their color */
+.sidebar a:hover {
+  color: #f1f1f1;
+}
+
+/* Position and style the close button (top right corner) */
+.sidebar .closebtn {
+  position: absolute;
+  top: 1px;
+  right: 25px;
+  font-size: 36px;
+  margin-left: 50px;
+}
+
+/* The button used to open the sidebar */
+.openbtn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-top: -6px;
+  font-size: 25px;
+  cursor: pointer;
+  color: inherit;
+}
+
+.openbtn:hover {
+  color: #444;
+}
+
+/* Style page content - use this if you want to push the page content to the right when you open the side navigation */
+#main {
+  transition: margin-left .5s; /* If you want a transition effect */
+  padding: 20px;
+}
+
+/* On smaller screens, where height is less than 450px, change the style of the sidenav (less padding and a smaller font size) */
+@media screen and (max-height: 450px) {
+  .sidebar {padding-top: 15px;}
+  .sidebar a {font-size: 18px;}
+}
+body, #main, .container, main.content {
+  background-color: #1e1e1e !important;
+  color: #ddd !important;
+}
+
+a, label, select, input, button, .description {
+  color: #ccc !important;
+}
+
+input, select, button {
+  background-color: #333 !important;
+  border: 1px solid #555 !important;
+}
+
+button.openbtn {
+  background-color: transparent !important;
+  border: none !important;
+  color: #ddd !important;
+}
+
+button.openbtn:hover {
+  color: #fff !important;
+}
+
+.sidebar {
+  background-color: #3b3b3b !important;
+}
+
+.sidebar a {
+  color: #bbb !important;
+}
+
+.sidebar a:hover {
+  color: #fff !important;
+}
+
+.sidebar .closebtn {
+  color: #bbb !important;
+}
+
+.sidebar .closebtn:hover {
+  color: #ff5555 !important;
+}
+
+#output {
+  color: black !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+  font-weight: normal !important;
+}
+select:hover {
+  background-color: #444 !important;
+  color: #fff !important;
+  border-color: #888 !important;
+}
+
+input:hover {
+  background-color: #444 !important;
+  color: #fff !important;
+  border-color: #888 !important;
+}

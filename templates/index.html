@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=0.8">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']]
+      }
+    };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+      body {
+        font-family: Georgia, serif;
+      }
+      @media (max-width: 768px) {
+        .matrix input {
+          font-size: 14px !important;
+        }
+      }
+    </style>
+</head>
+<body>
+  <div id="sidebar-placeholder"></div>
+  <script>
+    fetch('/static/partials/sidebar.html')
+      .then(res => res.text())
+      .then(html => {
+        document.getElementById('sidebar-placeholder').innerHTML = html;
+
+        window.openNav = function () {
+          const sidebar = document.getElementById("mySidebar");
+          if (sidebar) sidebar.style.width = "250px";
+        };
+
+        window.closeNav = function () {
+          const sidebar = document.getElementById("mySidebar");
+          if (sidebar) sidebar.style.width = "0";
+        };
+      });
+  </script>
+  <div id="main">
+    <div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 0px;">
+      <button class="openbtn" onclick="openNav()" style="padding-top: 0px;">☰</button>
+      <div>
+        <h2 style="margin: 0; font-size: 25px;">Decomposizione Spettrale</h2>
+        <p class="description">
+          Inserisci la matrice $A$ per la quale calcolare la decomposizione spettrale.
+        </p>
+        <p class="description">
+          Eventuali celle vuote verranno considerate come zero.
+        </p>
+        <div style="margin-top: 10px; font-size: 16px;">
+          <label for="matrixSize">Dimensione matrice:</label>
+          <select id="matrixSize" onchange="rebuildMatrix()">
+            <option value="2">2×2</option>
+            <option value="3" selected>3×3</option>
+            <option value="4">4×4</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="container">
+      <main class="content">
+        <div style="text-align: center; margin-top: 20px;">
+          <div class="centered-matrix">
+            <span id="leftBracket" style="font-size: 25px;"></span>
+            <div id="matrixInputs" class="matrix"></div>
+            <span id="rightBracket" style="font-size: 25px;"></span>
+          </div>
+        </div>
+        <div style="margin-top: 20px; text-align: center;">
+          <button onclick="renderLatex()">Decomponi</button>
+          <button onclick="computeExpAt()">Calcola \( e^{At} \)</button>
+          <button onclick="computePowerAt()">Calcola \( A^t \)</button>
+        </div>
+        <div id="output" class="output"></div>
+      </main>
+    </div>
+  </div>
+  
+  <script>
+    // Funzione per ricostruire la matrice
+    function rebuildMatrix() {
+      const size = parseInt(document.getElementById("matrixSize").value);
+      const container = document.getElementById("matrixInputs");
+      container.style.display = "grid";
+      container.style.gridTemplateColumns = `repeat(${size}, 30px)`;
+      container.style.gridTemplateRows = `repeat(${size}, 30px)`;
+      container.innerHTML = "";
+
+      // Crea dinamicamente i campi di input per la matrice
+      for (let i = 0; i < size; i++) {
+        for (let j = 0; j < size; j++) {
+          const input = document.createElement("input");
+          input.type = "text"; // allow comma and minus on mobile
+          input.setAttribute("inputmode", "decimal"); // hint for numeric keypad with decimal separator
+          input.setAttribute("pattern", "-?[0-9,]*"); // allow digits, minus, and comma
+          input.id = `cell_${i}_${j}`;
+          input.style.width = "30px";
+          input.style.height = "30px";
+          input.style.textAlign = "center";
+          input.style.fontSize = "20px";
+          input.style.boxSizing = "border-box";
+          container.appendChild(input);
+          // Real-time replacement: "00" → "/" for fraction symbol
+          input.addEventListener('input', function() {
+            this.value = this.value.replace(/,/g, '-');
+            this.value = this.value.replace(/00/g, '/');
+          });
+        }
+      }
+
+      // Brackets dinamici per la matrice con sintassi standard MathJax
+      const phantom = Array.from({ length: size }, () => "0").join(" \\\\ ");
+      const vphantom = `\\left[ \\vphantom{\\begin{array}{c} ${phantom} \\end{array}} \\right.`;
+      const rphantom = `\\left. \\vphantom{\\begin{array}{c} ${phantom} \\end{array}} \\right]`;
+
+      document.getElementById("leftBracket").innerHTML = `\\(A = ${vphantom}\\)`;
+      document.getElementById("rightBracket").innerHTML = `\\(${rphantom}\\)`;
+
+      MathJax.typesetPromise();
+    }
+
+    // Funzione per reset della matrice
+    function resetMatrix() {
+      const inputs = document.querySelectorAll('.matrix input');
+      inputs.forEach(input => input.value = "");
+      document.getElementById("output").innerHTML = "";
+    }
+
+window.onload = function() {
+  rebuildMatrix();
+  const output = document.getElementById("output");
+  if (!output.innerHTML.trim()) {
+    output.innerHTML = "<p style='text-align:center; color:#888; font-style:italic;'>Nessun input ricevuto...</p>";
+  }
+};
+
+// Funzione per eseguire il rendering LaTeX della matrice
+async function renderLatex() {
+    document.getElementById("output").innerHTML = "";
+    const size = parseInt(document.getElementById("matrixSize").value);
+        function val(i, j) {
+          const v = document.getElementById(`cell_${i}_${j}`).value.trim();
+          return v || "0";
+        }
+
+        const matrix = [];
+        for (let i = 0; i < size; i++) {
+            matrix.push(
+                Array.from({ length: size }, (_, j) => val(i, j)).join(" & ")
+            );
+        }
+
+        const latexMatrix = "\\begin{bmatrix} " + matrix.join(" \\\\ ") + " \\end{bmatrix}";
+
+        // 0) Mostra la matrice inserita (client-side only)
+        const out = document.getElementById("output");
+        out.innerHTML = `<p class="step-title"><b>0)</b> Matrice inserita:</p><p>$$${latexMatrix}$$</p>`;
+        // Rendering MathJax per la matrice
+        await MathJax.typesetPromise([out]);
+
+        const data = [];
+        for (let i = 0; i < size; i++) {
+            data.push(Array.from({ length: size }, (_, j) => val(i, j)));
+        }
+
+        const response = await fetch("/api/decomposizione", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ matrix: data })
+        });
+
+        const result = await response.json();
+
+        const latex = result.latex;
+
+        const steps = `
+          <p class="step-title"><b>1)</b> Polinomio caratteristico:</p>
+          <p>$$${latex[0]}$$</p>
+          <p>$$${latex[1]}$$</p>
+
+          <p class="step-title"><b>2)</b> Autovalori distinti:</p>
+          <p>$$${latex[2]}$$</p>
+
+          <p class="step-title"><b>3)</b> Decomposizione di \\(1/P(s)\\) in fratti semplici:</p>
+          <p>$$${latex[3]}$$</p>
+        `;
+        document.getElementById("output").innerHTML += steps;
+
+        document.getElementById("output").innerHTML += `
+          <p class="step-title"><b>4)</b> Polinomi \\(f_i(s)\\):</p>
+        `;
+
+        const fiLines = result.latex_fi
+            .map(t => `<p>$$${t}$$</p>`)
+            .join('');
+        document.getElementById("output").innerHTML += fiLines;
+
+        // Passo 5 - proiettori
+        document.getElementById("output").innerHTML += `
+          <p class="step-title"><b>5)</b> Proiettori spettrali \\(E_i = e_i(A)\\):</p>
+        `;
+
+        const projLines = result.latex_proj
+            .map(t => `<p class="centered-math">$$${t}$$</p>`)
+            .join('');
+        document.getElementById("output").innerHTML += projLines;
+
+        document.getElementById("output").innerHTML += `
+          <p class="step-title"><b>6)</b> Parte diagonalizzabile \\(D\\):</p>
+          <p class="centered-math">$$${result.latex_D}$$</p>
+        `;
+
+        // Passo 7 - parte nilpotente
+        document.getElementById("output").innerHTML += `
+          <p class="step-title"><b>7)</b> Parte nilpotente \\(N = A - D\\):</p>
+          <p class="centered-math">$$${result.latex_N}$$</p>
+        `;
+
+        MathJax.typesetPromise();
+    }
+    // Funzione per calcolare l'esponenziale della matrice A
+    async function computeExpAt() {
+      const size = parseInt(document.getElementById("matrixSize").value);
+      function val(i, j) {
+        const v = document.getElementById(`cell_${i}_${j}`).value.trim();
+        return v || "0";
+      }
+
+      const matrix = [];
+      for (let i = 0; i < size; i++) {
+        matrix.push(Array.from({ length: size }, (_, j) => val(i, j)));
+      }
+
+      // 0) Mostra la matrice inserita (client-side only)
+      const out = document.getElementById("output");
+      // Ricostruisci LaTeX della matrice
+      const latexMatrixExp = "\\begin{bmatrix} " +
+        matrix.map(row => row.join(" & ")).join(" \\\\ ") +
+        " \\end{bmatrix}";
+      out.innerHTML = `<p class="step-title"><b>0)</b> Matrice inserita:</p><p>$$${latexMatrixExp}$$</p>`;
+      await MathJax.typesetPromise([out]);
+
+      // Step 1: ottieni decomposizione
+      const decompResponse = await fetch("/api/decomposizione", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ matrix })
+      });
+      const decomp = await decompResponse.json();
+
+      // Step 2: invia i dati estesi a expAt
+      const response = await fetch("/api/expAt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          matrix,
+          N_matrix_raw: decomp.N_matrix_raw,
+          proj_expr_list_raw: decomp.proj_expr_list_raw,
+          latex_proj: decomp.latex_proj
+        })
+      });
+
+      const result = await response.json();
+      let expFormula = "e^{At} = ";
+      let expTerms = [];
+      for (let i = 0; i < result.nilpotence_index; i++) {
+        const coeff = `\\frac{t^{${i}}}{${i}!}`;
+        const Dterm = "e^{Dt}";
+        const Nterm = i === 0 ? "" : `N^{${i}}`;
+        expTerms.push(`${coeff} ${Dterm} ${Nterm}`.trim());
+      }
+      expFormula += expTerms.join(" + ");
+      document.getElementById("output").innerHTML += `
+        <p class="step-title"><b>1)</b> Parte nilpotente $N$ e proiettori $E_i$ per la matrice $A$:</p>
+        <p class="centered-math">$$N = ${result.latex_N}$$</p>
+        ${result.latex_proj.map(p => `<p class="centered-math">$$${p}$$</p>`).join('')}
+
+        <p class="step-title"><b>2)</b> La matrice \\(N\\) ha indice di nilpotenza \\(k = ${result.nilpotence_index}\\).</p>
+
+        <p class="step-title"><b>3)</b> Sviluppo della matrice \\(e^{Dt}\\):</p>
+        <p class="centered-math">$$e^{Dt} = ${result.latex_Dt_formula} = ${result.latex_Dt_matrix}$$</p>
+
+        <p class="step-title"><b>4)</b> Matrice \\(e^{At}\\) con \\(t \\in \\mathbb{R}_{\\geq 0}\\):</p>
+        <p class="centered-math">$$${expFormula}$$</p>
+        <p class="centered-math">$$= ${result.latex_exp}$$</p>
+      `;
+      MathJax.typesetPromise();
+    }
+
+    async function computePowerAt() {
+      const size = parseInt(document.getElementById("matrixSize").value);
+      function val(i, j) {
+          const v = document.getElementById(`cell_${i}_${j}`).value.trim();
+          return v || "0";
+      }
+
+      const matrix = [];
+      for (let i = 0; i < size; i++) {
+          matrix.push(Array.from({ length: size }, (_, j) => val(i, j)));
+      }
+
+      // 0) Mostra la matrice inserita (client-side only)
+      const outP = document.getElementById("output");
+      // Ricostruisci LaTeX della matrice
+      const latexMatrixPow = "\\begin{bmatrix} " +
+        matrix.map(row => row.join(" & ")).join(" \\\\ ") +
+        " \\end{bmatrix}";
+      outP.innerHTML = `<p class="step-title"><b>0)</b> Matrice inserita:</p><p>$$${latexMatrixPow}$$</p>`;
+      await MathJax.typesetPromise([outP]);
+
+      // Prima chiama /api/decomposizione
+      const decompResponse = await fetch("/api/decomposizione", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ matrix })
+      });
+      const decomp = await decompResponse.json();
+
+      // Poi chiama /api/powerAt con i dati estesi
+      const response = await fetch("/api/powerAt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          matrix,
+          N_matrix_raw: decomp.N_matrix_raw,
+          proj_expr_list_raw: decomp.proj_expr_list_raw,
+          latex_proj: decomp.latex_proj
+        })
+      });
+
+      const result = await response.json();
+      let formula = "A^t = ";
+      let terms = [];
+      for (let i = 0; i < result.nilpotence_index; i++) {
+          const binom = `\\binom{t}{${i}}`;
+          const Dterm = i === 0 ? "D^t" : `D^{t-${i}}`;
+          const Nterm = i === 0 ? "" : `N^{${i}}`;
+          terms.push(`${binom} ${Dterm} ${Nterm}`.trim());
+      }
+      formula += terms.join(" + ");
+      document.getElementById("output").innerHTML += `
+        <p class="step-title"><b>1)</b> Parte nilpotente $N$ e proiettori $E_i$ per la matrice $A$:</p>
+        <p class="centered-math">$$N = ${result.latex_N}$$</p>
+        ${result.latex_proj.map(p => `<p class="centered-math">$$${p}$$</p>`).join('')}
+
+        <p class="step-title"><b>2)</b> La matrice \\(N\\) ha indice di nilpotenza \\(k = ${result.nilpotence_index}\\).</p>
+
+        <p class="step-title"><b>3)</b> Sviluppo della matrice \\(D^t\\):</p>
+        <p class="centered-math">$$D^t = ${result.latex_Dt_formula} = ${result.latex_Dt_matrix}$$</p>
+
+        <p class="step-title"><b>4)</b> Matrice \\(A^t\\) con \\(t \\in \\mathbb{N}_{>0}\\):</p>
+        <p class="centered-math">$$${formula}$$</p>
+        <p class="centered-math">$$= ${result.latex_power}$$</p>
+      `;
+      MathJax.typesetPromise();
+    }
+  </script>
+</body>
+</html>

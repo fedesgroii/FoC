@@ -1,0 +1,39 @@
+<!-- sidebar.html -->
+<div id="mySidebar" class="sidebar" style="
+  height: 100%;
+  width: 0;
+  position: fixed;
+  z-index: 1000;
+  top: 0;
+  left: 0;
+  overflow-x: hidden;
+  padding-top: 0;
+  transition: 0.5s;
+">
+  <div style="display: flex; justify-content: space-between; align-items: center; padding: 17px 20px 10px;">
+    <div style="font-size: 20px; font-weight: 600; color: white; line-height: 1.1;">Matrix Tools</div>
+    <a href="javascript:void(0)" class="closebtn"
+       onclick="closeNav()"
+       style="font-size: 26px; color: #ccc; text-decoration: none; transform: translateY(-1px);">
+      &times;
+    </a>
+  </div>
+  <hr style="border: none; border-top: 1px solid #bbb; margin: 5px 0 5px 0;">
+  <a href="/" class="sidebar-link">&#9656; Decomposizione Spettrale</a>
+  <a href="/sistemi_dinamici.html" class="sidebar-link">&#9656; Sistemi Dinamici</a>
+  <a href="/linearizzazione.html" class="sidebar-link">&#9656; Linearizzazione</a>
+  <a href="/equazioni_differenziali.html" class="sidebar-link">&#9656; Equazioni Differenziali</a>
+  <a href="/equazioni_alle_differenze.html" class="sidebar-link">&#9656; Equazioni Alle Differenze</a>
+</div>
+
+<script>
+  function openNav() {
+    const sidebar = document.getElementById("mySidebar");
+    if (sidebar) sidebar.style.width = "250px";
+  }
+
+  function closeNav() {
+    const sidebar = document.getElementById("mySidebar");
+    if (sidebar) sidebar.style.width = "0";
+  }
+</script>

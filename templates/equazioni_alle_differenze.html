@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Equazioni alle Differenze</title>
+  <meta name="viewport" content="width=device-width, initial-scale=0.8">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+  <div id="sidebar-placeholder"></div>
+
+  <div id="main">
+    <div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 0px;">
+      <button class="openbtn" onclick="openNav()" style="padding-top: 0px;">☰</button>
+      <div>
+        <h2 style="margin: 0; font-size: 25px;">Soluzione di Equazioni alle Differenze</h2>
+        <p class="description">
+          Inserisci una equazione alle differenze della forma \( P(\Delta)y(t) = u(t) \).
+        </p>
+        <p class="description">
+          Utilizza "d" per indicare con più semplicità l'operatore alle differenze \( \Delta \).
+        </p>
+        <p class="description">
+          Se non specifichi tutte le condizioni iniziali, verranno interpretate come costanti arbitrarie \( y_k \) nella soluzione generale.
+        </p>
+        <div style="margin:0px 0;font-size:16px;">
+          <label for="orderSelect" style="font-weight: 500;">Numero di condizioni iniziali:</label>
+          <select id="orderSelect" onchange="buildInitialConditions()" style="font-size: 16px; margin-left: 6px;">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3" selected>3</option>
+            <option value="4">4</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+      <!-- ► Zona input ◄ -->
+      <div style="margin:20px 0; font-size:16px; text-align:center;">
+        <input id="polyInput" type="text" placeholder="es. d^2 - 3*d + 2"
+               style="width: 250px; font-size: 18px; text-align: center;">
+        <span style="font-size: 20px; margin: 0 10px;">\( y(t) = \)</span>
+        <input id="rhsInput" type="text" placeholder="es. 2^t"
+               style="width: 200px; font-size: 18px; text-align: center;">
+        <br><br>
+        <div id="initialConditions" style="margin-top: 15px;"></div>
+      </div>
+
+      <!-- ► Bottone ◄ -->
+      <div style="margin-top: 20px; text-align: center;">
+        <button onclick="calcolaSoluzione()">Calcola soluzione generale</button>
+        <button onclick="calcolaCondizioni()" style="margin-left: 10px;">Passa alle condizioni iniziali</button>
+      </div>
+
+      <main class="content">
+        <div id="output" class="output" style="margin-top:0px;">
+          <p style="text-align:center; color:#888; font-style:italic;">Nessuna equazione inserita...</p>
+        </div>
+      </main>
+    </div>
+  </div>
+
+<script>
+  function mostraEquazioneInserita() {
+    const output = document.getElementById("output");
+    if (!output.innerHTML.trim() || output.innerHTML.includes("Nessuna equazione inserita")) {
+      output.innerHTML = "";
+    }
+
+    const lhs = document.getElementById("polyInput").value.trim() || "0";
+    const rhs = document.getElementById("rhsInput").value.trim() || "0";
+    const eq = `${lhs} * y = ${rhs}`;
+    let latexEq = eq
+      .replace(/\*/g, '')                         // rimuove il simbolo *
+      .replace(/d/g, "\\Delta")                   // sostituisce d con Delta
+      .replace(/\by\b(?!\s*\()/g, "y(t)")         // sostituisce y con y(t), evitando y(...) come y(0)
+      .replace(/(\d+)\s*\^\s*t/g, "$1^{t}");       // trasforma 2^t in 2^{t}
+
+    const order = parseInt(document.getElementById("orderSelect").value);
+    const condizioni = [];
+    for (let k = 0; k < order; k++) {
+      const inputVal = document.getElementById(`y_${k}`).value.trim();
+      const displayVal = inputVal === "" || inputVal === "0" ? `y_${k}` : inputVal;
+      condizioni.push(`y(${k}) = ${displayVal}`);
+    }
+
+    const html = `
+      <p class="step-title"><b>0)</b> Equazione inserita:</p>
+      <p class="centered-math">\\[ ${latexEq} \\]</p>
+      <p class="centered-math">\\[ ${condizioni.join(",\\quad ")} \\]</p>
+    `;
+
+    output.innerHTML = html;
+    MathJax.typesetPromise([output]);
+  }
+
+  function buildInitialConditions() {
+    const container = document.getElementById("initialConditions");
+    const order = parseInt(document.getElementById("orderSelect").value);
+    container.innerHTML = "";
+
+    for (let k = 0; k < order; k++) {
+      const label = document.createElement("label");
+      const formula = `y(${k})`;
+      label.innerHTML = `\\( ${formula} = \\)`;
+      label.style.marginRight = "5px";
+
+      const input = document.createElement("input");
+      input.type = "text";
+      input.id = `y_${k}`;
+      input.placeholder = `y_${k}`;
+      input.style.width = "80px";
+      input.style.textAlign = "center";
+      input.style.marginRight = "15px";
+      input.style.fontSize = "16px";
+
+      container.appendChild(label);
+      container.appendChild(input);
+    }
+    MathJax.typesetPromise([container]);
+  }
+
+  fetch('/static/partials/sidebar.html')
+    .then(res => res.text())
+    .then(html => {
+      document.getElementById('sidebar-placeholder').innerHTML = html;
+
+      window.openNav = function () {
+        const sidebar = document.getElementById("mySidebar");
+        if (sidebar) sidebar.style.width = "250px";
+      };
+
+      window.closeNav = function () {
+        const sidebar = document.getElementById("mySidebar");
+        if (sidebar) sidebar.style.width = "0";
+      };
+    });
+
+  // Variabile globale per la soluzione simbolica
+  let symbolicSolution = "";
+
+  // Funzione per calcolare la soluzione particolare, con controllo polinomio
+  function calcolaSoluzione() {
+    const poly = document.getElementById("polyInput").value.trim();
+    if (!poly || poly === "0") {
+      const out = document.getElementById("output");
+      out.innerHTML = `<p style="color:red; text-align:center;">Inserire un polinomio alle differenze \\( P(\\Delta) \\)</p>`;
+      MathJax.typesetPromise([out]);
+      return;
+    }
+
+    mostraEquazioneInserita();
+
+    const rhs = document.getElementById("rhsInput").value.trim() || "0";
+    const order = parseInt(document.getElementById("orderSelect").value);
+    const condizioni = [];
+    for (let k = 0; k < order; k++) {
+      condizioni.push(document.getElementById(`y_${k}`).value.trim());
+    }
+
+    fetch("/api/equazioni_alle_differenze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ poly, rhs, condizioniIniziali: condizioni })
+    })
+      .then(r => r.json())
+      .then(data => {
+        symbolicSolution = data.soluzione_symbolica || "";
+        console.log("[DEBUG] symbolicSolution set to:", symbolicSolution);
+        const out = document.getElementById("output");
+        if (!data.success) {
+          out.innerHTML += `<p style="color:red; text-align:center;">${data.errore || "Errore nella risposta del server"}</p>`;
+        } else {
+          if (data.latex && Array.isArray(data.latex)) {
+            let stepCounter = 1;
+            data.latex.forEach((step) => {
+              out.innerHTML += `
+                <p class="step-title"><b>${stepCounter++})</b> ${step.title}</p>
+                <p class="centered-math">\\[${step.content}\\]</p>
+              `;
+            });
+          }
+          MathJax.typesetPromise([out]);
+        }
+      })
+      .catch(() => {
+        mostraEquazioneInserita();
+        const out = document.getElementById("output");
+        out.innerHTML += "<p style='color:red; text-align:center;'>Errore di rete.</p>";
+        MathJax.typesetPromise([out]);
+      });
+  }
+
+  // Funzione per passare alle condizioni iniziali (Equazioni alle differenze)
+  function calcolaCondizioni() {
+    const lhsPoly = document.getElementById("polyInput").value.trim();
+    if (!lhsPoly || lhsPoly === "0") {
+      const out = document.getElementById('output');
+      out.innerHTML = `<p style="color:red; text-align:center;">Inserire un polinomio alle differenze \\( P(\\Delta) \\)</p>`;
+      MathJax.typesetPromise([out]);
+      return;
+    }
+
+    mostraEquazioneInserita();
+
+    let rhsExpr = document.getElementById("rhsInput").value.trim();
+    if (!rhsExpr) rhsExpr = "0";
+    const eq = `${lhsPoly} * y = ${rhsExpr}`;
+    const order = parseInt(document.getElementById("orderSelect").value);
+    const condizioni = [];
+    for (let k = 0; k < order; k++) {
+      const input = document.getElementById(`y_${k}`).value.trim();
+      const val = input === "" ? `y_${k}` : input;
+      condizioni.push(val);
+    }
+
+    // Fai prima il fetch alla soluzione generale
+    fetch('/api/equazioni_alle_differenze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        poly: lhsPoly,
+        rhs: rhsExpr,
+        condizioniIniziali: condizioni
+      })
+    })
+    .then(response => response.json())
+    .then(solData => {
+      const soluzioneGenerale = solData.soluzione_symbolica || "";
+      console.log("[DEBUG] soluzioneGenerale set to:", soluzioneGenerale);
+      if (!soluzioneGenerale) {
+        const out = document.getElementById('output');
+        out.innerHTML += `<p style="color:red; text-align:center;">Soluzione simbolica assente nella risposta del server.</p>`;
+        MathJax.typesetPromise([out]);
+        return;
+      }
+
+      if (!solData.success || !solData.latex || solData.latex.length < 3) {
+        const out = document.getElementById('output');
+        out.innerHTML += `<p style="color:red; text-align:center;">Errore nel calcolo della soluzione generale</p>`;
+        MathJax.typesetPromise([out]);
+        return;
+      }
+
+      // Ora invia tutto all'endpoint delle condizioni
+      fetch('/api/condizioni_alle_differenze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          equazione: eq,
+          condizioniIniziali: condizioni,
+          soluzione_symbolica: soluzioneGenerale
+        })
+      })
+      .then(async r => {
+        const contentType = r.headers.get("content-type");
+        if (!r.ok || !contentType || !contentType.includes("application/json")) {
+          const text = await r.text();
+          throw new Error(`Risposta non valida dal server: ${text.slice(0, 100)}...`);
+        }
+        return r.json();
+      })
+      .then(res => {
+        const out = document.getElementById('output');
+        if (!res.success) {
+          out.innerHTML += `<p style="color:red; text-align:center;">${res.errore}</p>`;
+          MathJax.typesetPromise([out]);
+        } else {
+          if (res.latex && Array.isArray(res.latex)) {
+            let stepCounter = 1;
+            res.latex.forEach((step) => {
+              out.innerHTML += `
+                <p class="step-title"><b>${stepCounter++})</b> ${step.title}</p>
+                <p class="centered-math">\\[${step.content}\\]</p>
+              `;
+            });
+          }
+          MathJax.typesetPromise([out]);
+        }
+      })
+      .catch(err => {
+        const out = document.getElementById('output');
+        out.innerHTML += `<p style="color:red; text-align:center;">${err.message || "Errore sconosciuto"}</p>`;
+      });
+    });
+  }
+</script>
+<script>
+  // Assicura che gli input per le condizioni iniziali siano generati all’avvio della pagina
+  window.addEventListener("DOMContentLoaded", buildInitialConditions);
+</script>
+</body>
+</html>

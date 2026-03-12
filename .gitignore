@@ -1,0 +1,22 @@
+# VS Code workspace files
+*.code-workspace
+
+# VS Code settings folder
+.vscode/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.env
+.env
+.venv/
+venv/
+ENV/
+env/
+build/
+dist/
+
+# Mac
+.DS_Store
