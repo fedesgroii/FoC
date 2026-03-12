@@ -14,6 +14,10 @@ def index():
 def sistemi_dinamici():
     return render_template("sistemi_dinamici.html")
 
+@app.route("/stabilita.html")
+def stabilita():
+    return render_template("stabilita.html")
+
 @app.route("/linearizzazione.html")
 def linearizzazione():
     return render_template("linearizzazione.html")
