@@ -1,9 +1,19 @@
 from flask import Flask, render_template
 from routes import register_routes
 import os
-import socket
+from pathlib import Path
 
-app = Flask(__name__)
+# Percorso assoluto alla cartella del progetto (fondamentale per Render/Gunicorn)
+BASE_DIR = Path(__file__).resolve().parent
+
+# Inizializzazione Flask con percorsi assoluti per static e templates
+app = Flask(
+    __name__,
+    static_folder=BASE_DIR / 'static',
+    static_url_path='/static',
+    template_folder=BASE_DIR / 'templates'
+)
+
 register_routes(app)
 
 @app.route("/")
@@ -32,4 +42,5 @@ def equazioni_differenze():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    # debug=False è obbligatorio quando si usa gunicorn in produzione
+    app.run(host="0.0.0.0", port=port, debug=False)
