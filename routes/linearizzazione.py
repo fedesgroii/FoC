@@ -124,7 +124,7 @@ def linearizzazione():
                 soluzioni = [sol_dinamica]
 
         # Nuovo blocco: accetta anche soluzioni simboliche, mantenendo consistenza
-        soluzioni_reali = []
+        soluzioni_dict_raw = []
         for sol in soluzioni:
             sol_dict = {}
             for i, var in enumerate(x):
@@ -134,33 +134,55 @@ def linearizzazione():
                     # parametro libero: creiamo un Symbol c_{i+1}
                     sol_dict[chiave] = sp.Symbol(f"c_{i+1}")
                 else: 
-                    # semplifichiamo e manteniamo oggetti SymPy (Symbol, Rational, etc.)
-                    sol_dict[chiave] = sp.nsimplify(valore, rational=True)
-            soluzioni_reali.append(sol_dict)
+                    # semplifichiamo e manteniamo forme simboliche corrette (es. \pi invece di approssimare a rational)
+                    sol_dict[chiave] = sp.simplify(valore)
+            soluzioni_dict_raw.append(sol_dict)
 
-        # Sostituisci simboli con espressioni semplici se sono riferimenti ad altri simboli o costanti
-        for sol in soluzioni_reali:
+        # Sostituisci simboli con espressioni semplici se sono riferimenti ad altri simboli o costanti (correggendo logica "v in sol")
+        for sol_dict in soluzioni_dict_raw:
+            subs_map = {sp.Symbol(k): v for k, v in sol_dict.items()}
             changed = True
             while changed:
                 changed = False
-                for k, v in sol.items():
-                    if v in sol and sol[v] != v:
-                        sol[k] = sol[v]
-                        changed = True
+                for k, v in sol_dict.items():
+                    if hasattr(v, 'subs'):
+                        new_v = sp.simplify(v.subs(subs_map))
+                        if new_v != v:
+                            sol_dict[k] = new_v
+                            subs_map[sp.Symbol(k)] = new_v
+                            changed = True
+
+        # Validazione delle soluzioni (scarta quelle che non azzerano il sistema originale entro 1e-10)
+        soluzioni_reali = []
+        for sol_dict in soluzioni_dict_raw:
+            # Crea un dizionario di sostituzione per le variabili rispetto alle equazioni originali
+            subs_eq_dict = {x[i]: sol_dict[f"x_{i+1}"] for i in range(numero_equazioni)}
+            
+            is_valid = True
+            # Controlliamo solo se la soluzione numerica è calcolabile (no parametri c_ liberi)
+            # hasattr(v, "free_symbols") is implicit for SymPy expressions
+            if not any(c.name.startswith("c_") for v in sol_dict.values() if hasattr(v, "free_symbols") for c in v.free_symbols if hasattr(c, "name")):
+                for eq in eqs_punto_di_equilibrio:
+                    expr = eq.lhs - eq.rhs
+                    residuo = expr.subs(subs_eq_dict)
+                    try:
+                        # Valuta il residuo numericamente con tolleranza 1e-10
+                        residuo_f = float(sp.N(residuo, 15))
+                        if abs(residuo_f) > 1e-10:
+                            is_valid = False
+                            break
+                    except TypeError:
+                        # Se TypeError, l'espressione contiene ancora incognite, non scartiamo
+                        pass
+            
+            if is_valid:
+                soluzioni_reali.append(sol_dict)
 
         # Step 1: Punto di equilibrio
         # Build LaTeX for equilibrium equations and solution
         eqs_latex = " \\\\ ".join([sp.latex(eq) for eq in eqs_punto_di_equilibrio])
         latex_steps = []
         for idx, sol in enumerate(soluzioni_reali):
-            # semplifica espressioni tra variabili nel punto di lavoro
-            changed = True
-            while changed:
-                changed = False
-                for k, v in sol.items():
-                    if v in sol and sol[v] != v:
-                        sol[k] = sol[v]
-                        changed = True
             if tipo_dominio == "typeContinuo":
                 descrizione_dominio = r"\mathbb{T} = \mathbb{R}\implies f(\mathbf{x}_e, u_e) = 0 \implies "
             else:
