@@ -4,9 +4,8 @@ from sympy import (
     symbols, Function, Eq, dsolve, Derivative, exp, simplify, collect,
     cos, sin, latex, expand, linear_eq_to_matrix
 )
-from sympy.parsing.sympy_parser import (
-    parse_expr, standard_transformations, implicit_multiplication_application
-)
+from sympy.parsing.sympy_parser import parse_expr
+from .utils import transformations_basic as transformations
 import re
 
 equazioni_differenziali_bp = Blueprint("equazioni_differenziali", __name__)
@@ -197,7 +196,6 @@ def solve_differential_equation(equation_str):
         if not equation_str.strip() or equation_str.strip() in ["0 = 0", "0=0"]:
             raise ValueError("Nessun polinomio P(d) è stato inserito.")
 
-        transformations = standard_transformations + (implicit_multiplication_application,)
         local_dict = {
             'y': y, 't': t,
             'd': sp.Symbol('d'),

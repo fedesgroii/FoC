@@ -1,9 +1,8 @@
 from flask import Blueprint, request, jsonify
 import sympy as sp
 from sympy import Function, symbols, Eq
-from sympy.parsing.sympy_parser import (
-    parse_expr, standard_transformations, implicit_multiplication_application
-)
+from sympy.parsing.sympy_parser import parse_expr
+from .utils import transformations_basic as transformations
 
 equazioni_alle_differenze_bp = Blueprint("equazioni_alle_differenze", __name__)
 
@@ -34,7 +33,6 @@ def api_equazioni_alle_differenze():
         y = Function("y")
         d = sp.Symbol("d")  # simbolo formale per rappresentare l'operatore shift
 
-        transformations = standard_transformations + (implicit_multiplication_application,)
         local_dict = {"d": d, "y": y(t), "t": t, "e": sp.E}
 
         lhs_str, rhs_str = eq_str.split("=", 1)

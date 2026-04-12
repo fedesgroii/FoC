@@ -1,9 +1,8 @@
 from flask import Blueprint, request, jsonify
 import sympy as sp
 from sympy import symbols, Function, Eq, Derivative, dsolve, simplify, latex
-from sympy.parsing.sympy_parser import (
-    parse_expr, standard_transformations, implicit_multiplication_application
-)
+from sympy.parsing.sympy_parser import parse_expr
+from .utils import transformations_basic as transformations
 from routes.equazioni_differenziali import solve_differential_equation
 
 condizioni_differenziali_bp = Blueprint("condizioni_differenziali", __name__)
@@ -26,7 +25,6 @@ def api_condizioni_iniziali():
         t = symbols("t")
         y = Function("y")(t)
 
-        transformations = standard_transformations + (implicit_multiplication_application,)
         local_dict = {"y": y, "t": t, "e": sp.E}
 
         lhs_str, rhs_str = eq_str.split("=", 1)

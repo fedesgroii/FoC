@@ -2,8 +2,8 @@ from flask import Blueprint, request, jsonify
 import sympy as sp
 from sympy import Matrix
 from ast import literal_eval
-from sympy.parsing.sympy_parser import standard_transformations, implicit_multiplication_application, parse_expr
-from sympy.parsing.sympy_parser import convert_xor
+from sympy.parsing.sympy_parser import parse_expr
+from .utils import transformations
 
 sistemi_dinamici_bp = Blueprint("sistemi_dinamici", __name__)
 
@@ -15,7 +15,6 @@ def compute_output_y():
     C = sp.Matrix(request.json["C"]).reshape(1, A.shape[0])
     D = sp.sympify(request.json["D"])
     u_expr = request.json["u"] if "u" in request.json and request.json["u"].strip() else "0"
-    transformations = standard_transformations + (implicit_multiplication_application, convert_xor)
     u = parse_expr(u_expr, local_dict={"t": t}, transformations=transformations)
 
     # Step 1: U(s) = Laplace{u(t)}

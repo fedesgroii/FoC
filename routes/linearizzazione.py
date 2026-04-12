@@ -1,29 +1,9 @@
 from flask import Blueprint, request, jsonify
 import sympy as sp
-import re
 from sympy import Matrix, symbols, simplify, sympify, Eq, solve
 from ast import literal_eval
-from sympy.parsing.sympy_parser import (
-    parse_expr, standard_transformations,
-    implicit_multiplication_application,
-    convert_xor, function_exponentiation
-)
-transformations = standard_transformations + (
-    implicit_multiplication_application,
-    convert_xor,
-    function_exponentiation
-)
-
-
-def sostituisci_pedici(equation_str):
-    """
-    Converte 'x_1', 'x_{2}', ecc. in 'x1', 'x2', ...
-    """
-    def replacer(match):
-        index = match.group(1) or match.group(2)
-        return f"x{index}"
-    equation_str = re.sub(r"x_(?:\{(\d+)\}|\s*(\d+))", replacer, equation_str)
-    return equation_str
+from sympy.parsing.sympy_parser import parse_expr
+from .utils import transformations, sostituisci_pedici, formatta_x_e
 
 linearizzazione_bp = Blueprint("linearizzazione", __name__)
 
@@ -193,7 +173,7 @@ def linearizzazione():
             descrizione_latex = (
                 descrizione_dominio
                 + r"\mathbf{x}_e = \left("
-                + ", ".join(sp.latex(v.subs(subs_dict)) for v in sol.values())
+                + ", ".join(formatta_x_e(v.subs(subs_dict)) for v in sol.values())
                 + r"\right)"
             )
 
@@ -217,7 +197,7 @@ def linearizzazione():
                 "debug_soluzioni_raw": [str(s) for s in soluzioni]
             })
 
-        soluzione_latex = ",\\quad ".join([f"{k} = {v}" for k, v in soluzioni_reali[0].items()])
+        soluzione_latex = ",\\quad ".join([f"{k} = {formatta_x_e(v)}" for k, v in soluzioni_reali[0].items()])
 
 
         from sympy import diff, Matrix
@@ -263,7 +243,7 @@ def linearizzazione():
                 )
 
                 # Usa lo stesso subs_dict di sopra per sostituire x_i → c_i
-                xe_latex = ", ".join(sp.latex(v.subs(subs_dict)) for v in sol.values())
+                xe_latex = ", ".join(formatta_x_e(v.subs(subs_dict)) for v in sol.values())
                 title = f"Linearizzazione relativa a \\( \\mathbf{{x}}_e = \\left({xe_latex}\\right) \\):"
                 latex_steps.append({
                     "title": title,

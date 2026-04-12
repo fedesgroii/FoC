@@ -1,9 +1,8 @@
 from flask import Blueprint, request, jsonify
 import sympy as sp
 from sympy import symbols, Function, Eq, simplify, latex
-from sympy.parsing.sympy_parser import (
-    parse_expr, standard_transformations, implicit_multiplication_application
-)
+from sympy.parsing.sympy_parser import parse_expr
+from .utils import transformations_basic as transformations
 
 condizioni_alle_differenze_bp = Blueprint("condizioni_alle_differenze", __name__)
 
@@ -20,7 +19,6 @@ def api_condizioni_differenze():
         t = symbols("t")
         y = Function("y")
         Y = sp.Symbol("y")  # y come simbolo temporaneo per parsing
-        transformations = standard_transformations + (implicit_multiplication_application,)
         local_dict = {"y": Y, "t": t, "e": sp.E, "delta": Function("delta")}
 
         lhs_str, rhs_str = eq_str.split("=", 1)
