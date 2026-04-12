@@ -53,6 +53,8 @@ def linearizzazione():
             try:
                 eq_modificata = sostituisci_pedici(eq)
                 local_dict = {f'x{i+1}': x[i] for i in range(numero_equazioni)}
+                if numero_equazioni == 1:
+                    local_dict['x'] = x[0]
                 local_dict['u'] = u
                 print("DEBUG: local_dict =", local_dict)
                 expr = parse_expr(eq_modificata, transformations=transformations, local_dict=local_dict)
@@ -87,13 +89,19 @@ def linearizzazione():
         print("DEBUG: Risolvo il sistema:")
         for eq in eqs_punto_di_equilibrio:
             print("   ", eq, "  (LaTeX:", sp.latex(eq), ")")
-        # Risolvi il sistema
-        soluzioni = solve(eqs_punto_di_equilibrio, dict=True)
+        # Risolvi il sistema rispetto alle variabili di stato x
+        soluzioni_raw = solve(eqs_punto_di_equilibrio, list(x), dict=True)
         # Filtra solo soluzioni reali (ignora quelle con parte immaginaria)
-        soluzioni = [
-            sol for sol in soluzioni
-            if all(sp.im(val) == 0 for val in sol.values())
-        ]
+        soluzioni = []
+        for sol in soluzioni_raw:
+            valido = True
+            for val in sol.values():
+                val_f = val.evalf()
+                if hasattr(val_f, 'is_real') and val_f.is_real is False:
+                    valido = False
+            if valido:
+                soluzioni.append(sol)
+
         # Blocco diagnostico per stampare il contenuto delle equazioni e delle soluzioni
         print("Equazioni punto di equilibrio:", eqs_punto_di_equilibrio)
         print("Soluzioni trovate:", soluzioni)
@@ -201,34 +209,35 @@ def linearizzazione():
             for i in range(numero_equazioni):
                 chiave = f"x_{i+1}"
                 valore = sol[chiave]
-                try:
-                    punto_eq_subs[x[i]] = sp.Rational(valore)
-                except:
-                    punto_eq_subs[x[i]] = symbols(str(valore))
+                punto_eq_subs[x[i]] = valore
+            punto_eq_subs[u] = valore_ingresso
 
             try:
                 f_exprs = []
                 for eq in equazioni:
                     eq_modificata = sostituisci_pedici(eq)
                     local_dict = {f'x{i+1}': x[i] for i in range(numero_equazioni)}
+                    if numero_equazioni == 1:
+                        local_dict['x'] = x[0]
                     local_dict['u'] = u
                     expr = parse_expr(eq_modificata, transformations=transformations, local_dict=local_dict)
                     f_exprs.append(expr)
 
-                A = Matrix([[diff(expr, x_var) for x_var in x] for expr in f_exprs]).subs(punto_eq_subs).subs(u, valore_ingresso).evalf()
-                B = Matrix([[diff(expr, u)] for expr in f_exprs]).subs(punto_eq_subs).subs(u, valore_ingresso).evalf()
+                A = Matrix([[diff(expr, x_var) for x_var in x] for expr in f_exprs]).subs(punto_eq_subs).applyfunc(sp.simplify)
+                B = Matrix([[diff(expr, u)] for expr in f_exprs]).subs(punto_eq_subs).applyfunc(sp.simplify)
 
                 h_uscita_mod = sostituisci_pedici(equazione_uscita)
                 local_dict = {f'x{i+1}': x[i] for i in range(numero_equazioni)}
+                if numero_equazioni == 1:
+                    local_dict['x'] = x[0]
                 local_dict['u'] = u
-                h_uscita = parse_expr(h_uscita_mod, transformations=transformations, local_dict=local_dict).subs(u, valore_ingresso)
-                C = Matrix([[diff(h_uscita, x_var) for x_var in x]]).subs(punto_eq_subs).evalf()
-
                 h_orig = parse_expr(h_uscita_mod, transformations=transformations, local_dict=local_dict)
-                D = Matrix([[diff(h_orig, u)]]).subs({**punto_eq_subs, u: valore_ingresso}).evalf()
+                
+                C = Matrix([[diff(h_orig, x_var) for x_var in x]]).subs(punto_eq_subs).applyfunc(sp.simplify)
+                D = Matrix([[diff(h_orig, u)]]).subs(punto_eq_subs).applyfunc(sp.simplify)
 
                 contenuto_matrici = (
-                    r"A = " + matrix_to_latex(A) + r",\quad B = " + matrix_to_latex(B) + r" \\ " + r",\quad C = " + matrix_to_latex(C) + r",\quad D = " + matrix_to_latex(D)
+                    r"A = " + matrix_to_latex(A) + r",\quad B = " + matrix_to_latex(B) + r" \\ " + r"C = " + matrix_to_latex(C) + r",\quad D = " + matrix_to_latex(D)
                 )
 
                 # Usa lo stesso subs_dict di sopra per sostituire x_i → c_i
