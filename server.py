@@ -40,6 +40,10 @@ def equazioni_differenziali():
 def equazioni_differenze():
     return render_template("equazioni_alle_differenze.html")
 
+@app.route("/da_soluzione_a_sistema.html")
+def da_soluzione_a_sistema():
+    return render_template("da_soluzione_a_sistema.html")
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     # debug=False è obbligatorio quando si usa gunicorn in produzione
