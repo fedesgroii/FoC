@@ -75,7 +75,7 @@ def api_da_soluzione_a_sistema():
         latex_steps = []
 
         # 0. Sistema inserito
-        time_domain_str = "Tempo Continuo (\\mathbb{R})" if time_type == 'continuous' else "Tempo Discreto (\\mathbb{Z})"
+        time_domain_str = "Tempo Continuo (\\(\\mathbb{R}\\))" if time_type == 'continuous' else "Tempo Discreto (\\(\\mathbb{Z}\\))"
         latex_steps.append({
             "title": f"Soluzione Inserita - {time_domain_str}",
             "content": f"y(t) = {to_latex(y_expr)}"
@@ -83,7 +83,7 @@ def api_da_soluzione_a_sistema():
 
         # 1. Ordine n
         latex_steps.append({
-            "title": "Ordine del sistema $n$",
+            "title": "Ordine del sistema \\(n\\)",
             "content": f"n = {n} \\quad \\text{{(Costanti: }} {', '.join(constants_str)} \\text{{)}}"
         })
 
@@ -180,23 +180,28 @@ def api_da_soluzione_a_sistema():
         
         D = sp.zeros(1, 1) # D is 0
 
-        matrices_latex = f"""\\begin{{aligned}}
-        A &= {to_latex(A)}, \\quad
-        B &= {to_latex(B)}, \\\\
-        C &= {to_latex(C)}, \\quad
-        D &= {to_latex(D)}
+        html_content = f"""
+        <div style="display: flex; flex-direction: column; gap: 20px; align-items: center; margin-top: 15px;">
+            <div style="display: flex; gap: 50px; justify-content: center; align-items: center;">
+                <div>\\[ A = {to_latex(A)} \\]</div>
+                <div>\\[ B = {to_latex(B)} \\]</div>
+            </div>
+            <div style="display: flex; gap: 50px; justify-content: center; align-items: center;">
+                <div>\\[ C = {to_latex(C)} \\]</div>
+                <div>\\[ D = {to_latex(D)} \\]</div>
+            </div>
+        </div>
         """
         
         if u_term != 0:
-            matrices_latex += f"\\\\ \\text{{Con ingresso }} u(t) = {to_latex(u_term)}"
+            html_content += f"<br><br><div style='text-align:center; font-size: 18px;'>Con ingresso \\( u(t) = {to_latex(u_term)} \\)</div>"
         else:
-            matrices_latex += f"\\\\ \\text{{Sistema autonomo (ingresso }} u(t) = 0 \\text{{)}}"
-
-        matrices_latex += "\\end{aligned}"
+            html_content += f"<br><br><div style='text-align:center; font-size: 18px;'>Sistema autonomo (ingresso \\( u(t) = 0 \\))</div>"
 
         latex_steps.append({
             "title": "Matrici del sistema in forma compagna",
-            "content": matrices_latex
+            "content": html_content,
+            "is_html": True
         })
 
         return jsonify({"success": True, "latex": latex_steps})
