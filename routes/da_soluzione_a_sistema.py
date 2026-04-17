@@ -47,13 +47,18 @@ def api_da_soluzione_a_sistema():
     try:
         # Pre-process input
         y_input_clean = y_input.replace('^', '**')
-        # find constants C1, C2, etc
-        constants_str = list(set(re.findall(r'C\d+', y_input_clean)))
-        constants_str.sort(key=lambda x: int(x[1:]))
+        # find constants c1, c2, C1, C2, etc
+        constants_str_found = list(set(re.findall(r'[cC]\d+', y_input_clean)))
+        constants_str = sorted([c.lower() for c in constants_str_found], key=lambda x: int(x[1:]))
+        # Ensure we only have unique lowercase constants
+        constants_str = list(dict.fromkeys(constants_str))
         n = len(constants_str)
 
         if n == 0:
-            return jsonify({"success": False, "error": "Nessuna costante C_i trovata nella soluzione. Assicurati di usare il formato C1, C2, ecc."})
+            return jsonify({"success": False, "error": "Nessuna costante c_i trovata nella soluzione. Assicurati di usare il formato c1, c2, ecc."})
+
+        # Replace all uppercase C with lowercase c in the input string to match our symbols
+        y_input_clean = re.sub(r'C(\d+)', r'c\1', y_input_clean)
 
         # Parse expression
         if time_type == 'continuous':
@@ -99,7 +104,7 @@ def api_da_soluzione_a_sistema():
             
         latex_steps.append({
             "title": "Equazioni" if time_type == 'continuous' else "Incrementi",
-            "content": "\\\\".join(eqs_latex)
+            "content": "\\begin{aligned} " + " \\\\ ".join(eqs_latex) + " \\end{aligned}"
         })
 
         # 3. Costanti isolate algebricamente
@@ -120,7 +125,7 @@ def api_da_soluzione_a_sistema():
         
         latex_steps.append({
             "title": "Costanti isolate",
-            "content": "\\\\".join(sol_latex)
+            "content": "\\begin{aligned} " + " \\\\ ".join(sol_latex) + " \\end{aligned}"
         })
 
         # 4. Equazione finale
@@ -134,7 +139,30 @@ def api_da_soluzione_a_sistema():
             "content": fix_latex_y_symbols(final_eq_str, time_type, n)
         })
 
-        # 5. Matrici Finali
+        # 5. Variabili di Stato
+        state_vars = []
+        for i in range(n):
+            if time_type == 'continuous':
+                if i == 0:
+                    state_vars.append(f"x_{{{i+1}}}(t) = y(t)")
+                elif i == 1:
+                    state_vars.append(f"x_{{{i+1}}}(t) = \\dot{{y}}(t)")
+                elif i == 2:
+                    state_vars.append(f"x_{{{i+1}}}(t) = \\ddot{{y}}(t)")
+                else:
+                    state_vars.append(f"x_{{{i+1}}}(t) = y^{{({i})}}(t)")
+            else:
+                if i == 0:
+                    state_vars.append(f"x_{{{i+1}}}(k) = y(k)")
+                else:
+                    state_vars.append(f"x_{{{i+1}}}(k) = y(k+{i})")
+        
+        latex_steps.append({
+            "title": "Variabili di stato introdotte",
+            "content": "\\begin{aligned} " + " \\\\ ".join(state_vars) + " \\end{aligned}"
+        })
+
+        # 6. Matrici Finali
         coeffs = [sp.simplify(y_n_expr.diff(y_syms[i])) for i in range(n)]
         u_term = sp.simplify(y_n_expr - sum(coeffs[i]*y_syms[i] for i in range(n)))
         
@@ -152,17 +180,19 @@ def api_da_soluzione_a_sistema():
         
         D = sp.zeros(1, 1) # D is 0
 
-        matrices_latex = f"""
-        A = {to_latex(A)}, \\quad
-        B = {to_latex(B)}, \\quad
-        C = {to_latex(C)}, \\quad
-        D = {to_latex(D)}
+        matrices_latex = f"""\\begin{{aligned}}
+        A &= {to_latex(A)}, \\quad
+        B &= {to_latex(B)}, \\\\
+        C &= {to_latex(C)}, \\quad
+        D &= {to_latex(D)}
         """
         
         if u_term != 0:
             matrices_latex += f"\\\\ \\text{{Con ingresso }} u(t) = {to_latex(u_term)}"
         else:
             matrices_latex += f"\\\\ \\text{{Sistema autonomo (ingresso }} u(t) = 0 \\text{{)}}"
+
+        matrices_latex += "\\end{aligned}"
 
         latex_steps.append({
             "title": "Matrici del sistema in forma compagna",

@@ -45,14 +45,14 @@
 
   <div class="container">
       <div style="margin-top: 20px; text-align: center;">
-        <span style="font-size: 20px; margin: 0 10px;">\( y(t) = \)</span>
-        <input id="soluzioneInput" type="text" placeholder="es. C1*e^t + C2*e^(2*t) + t"
+        <span id="yLabel" style="font-size: 20px; margin: 0 10px;">\( y(t) = \)</span>
+        <input id="soluzioneInput" type="text" placeholder="es. c1*e^t + c2*e^(2*t) + t"
                style="width: 350px; font-size: 18px; text-align: center; padding: 5px;">
       </div>
 
       <div style="margin:20px 0; font-size:16px; text-align:center;">
         <label for="timeSelect" style="font-weight: 500;">Dominio Temporale:</label>
-        <select id="timeSelect" style="font-size: 16px; margin-left: 6px; padding: 5px;">
+        <select id="timeSelect" style="font-size: 16px; margin-left: 6px; padding: 5px;" onchange="updateTimeNotation()">
           <option value="continuous" selected>Tempo Continuo (ℝ)</option>
           <option value="discrete">Tempo Discreto (ℤ)</option>
         </select>
@@ -71,6 +71,21 @@
   </div>
 
   <script>
+    function updateTimeNotation() {
+      const timeSelect = document.getElementById("timeSelect").value;
+      const yLabel = document.getElementById("yLabel");
+      const input = document.getElementById("soluzioneInput");
+      
+      if (timeSelect === 'continuous') {
+        yLabel.innerHTML = '\\( y(t) = \\)';
+        input.placeholder = "es. c1*e^t + c2*e^(2*t) + t";
+      } else {
+        yLabel.innerHTML = '\\( y(t) = \\)'; // Manteniamo y(t) come input soluzione
+        input.placeholder = "es. c1*2^t + c2*3^t";
+      }
+      MathJax.typesetPromise([yLabel]);
+    }
+
     function calcolaSistema() {
       const output = document.getElementById("output");
       const soluzione = document.getElementById("soluzioneInput").value.trim();
