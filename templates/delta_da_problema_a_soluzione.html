@@ -66,7 +66,7 @@
       <div>
         <h2 style="margin: 0; font-size: 25px;">Da Problema Delta a Sistema</h2>
         <p class="description">
-          Inserisci le specifiche delle funzioni delta, le costanti e l'equazione finale \( y(t) \).
+          Inserisci le specifiche delle funzioni delta e l'equazione finale \( y(t) \), includendo le costanti direttamente come moltiplicatori (es. c1, 5).
         </p>
       </div>
     </div>
@@ -82,15 +82,12 @@
       <button class="add-btn" onclick="addDeltaRow()">+ Aggiungi Delta</button>
     </div>
 
-    <div style="margin-top: 20px; text-align: center;">
-      <h4>Costanti</h4>
-      <input id="constantsInput" type="text" placeholder="es. c1, c2, c3" style="width: 350px; font-size: 18px; text-align: center; padding: 5px;">
-    </div>
+
 
     <div style="margin-top: 20px; text-align: center;">
       <h4>Equazione</h4>
       <span style="font-size: 20px; margin: 0 10px;">\( y(t) = \)</span>
-      <input id="equationInput" type="text" placeholder="es. d(t-1)*c1 + d(t)*c2" style="width: 350px; font-size: 18px; text-align: center; padding: 5px;">
+      <input id="equationInput" type="text" placeholder="es. c1*d(t-1) + 5*d(t)" style="width: 350px; font-size: 18px; text-align: center; padding: 5px;">
     </div>
 
     <div style="margin-top: 30px; text-align: center;">
@@ -154,7 +151,6 @@
           }
         });
 
-        const constants = document.getElementById("constantsInput").value.trim();
         const equation = document.getElementById("equationInput").value.trim();
 
         if (deltaSpecs.length === 0) {
@@ -173,7 +169,6 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
             delta_specs: deltaSpecs, 
-            constants: constants,
             equation: equation
           })
         })

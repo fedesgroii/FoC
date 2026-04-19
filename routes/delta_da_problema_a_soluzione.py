@@ -13,6 +13,8 @@ class DeltaSpec:
     def __init__(self, time_expr_str, active_at):
         self.time_expr_str = time_expr_str
         self.active_at = int(active_at)
+        self.constant = None
+        self.found = False
         
         t = sp.symbols('t', real=True)
         local_dict = {'t': t}
@@ -41,32 +43,65 @@ class ImpulseResponseSolver:
         self.z_sym = sp.symbols('z')
         self.d_func = sp.Function('d')
         
-    def parse_input(self, delta_specs_data, constants_str, equation_str):
+    def parse_input(self, delta_specs_data, equation_str):
         for spec in delta_specs_data:
             self.delta_specs.append(DeltaSpec(spec['time_expr'], spec['active_at']))
             
-        # Parse constants
-        const_names = [c.strip() for c in constants_str.split(',')]
+        import re
         local_dict = {'t': self.t_sym, 'd': self.d_func, 'D': self.d_func}
-        for c in const_names:
-            if c:
-                local_dict[c] = sp.symbols(c)
-                self.constants.append(c)
                 
         # Preprocess equation
         eq_clean = equation_str.split('=')[-1].strip() # Take right side if "y(t) =" is present
         eq_clean = eq_clean.replace('D(', 'd(') # Standardize D to d
         
+        # Auto-detect symbols to prevent implicit multiplication from splitting 'c2' into 'c*2'
+        for var_match in re.finditer(r'[a-zA-Z_]\w*', eq_clean):
+            var_name = var_match.group()
+            if var_name not in local_dict:
+                local_dict[var_name] = sp.symbols(var_name)
+        
         self.equation_sym = parse_expr(eq_clean, local_dict=local_dict, transformations=transformations)
+        
+        terms = self.equation_sym.as_ordered_terms() if isinstance(self.equation_sym, sp.Add) else [self.equation_sym]
+        for term in terms:
+            d_funcs = term.atoms(sp.Function)
+            if not d_funcs:
+                raise ValueError(f"Il termine '{term}' nell'equazione non contiene alcuna funzione delta. Assicurati che ogni costante moltiplichi una funzione d(...).")
+            
+            d_term_candidates = [f for f in d_funcs if f.func == self.d_func]
+            if not d_term_candidates:
+                 raise ValueError(f"Il termine '{term}' contiene una funzione non riconosciuta. Usa d(...) o D(...) per le delta.")
+            if len(d_term_candidates) > 1:
+                raise ValueError(f"Il termine '{term}' contiene più funzioni delta moltiplicate tra loro, formato non supportato.")
+                
+            d_term = d_term_candidates[0]
+            constant = sp.simplify(term / d_term)
+            
+            # find matching spec
+            matched = False
+            for spec in self.delta_specs:
+                if sp.simplify(d_term.args[0] - spec.time_expr_sym) == 0:
+                    spec.constant = constant
+                    spec.found = True
+                    matched = True
+                    break
+                    
+            if not matched:
+                raise ValueError(f"La funzione {d_term} usata nell'equazione non è stata definita nelle specifiche delle Delta. Aggiungila nelle specifiche oppure rimuovila dall'equazione.")
+                
+        # Verifica che tutte le delta definite abbiano un moltiplicatore
+        for spec in self.delta_specs:
+            if not spec.found:
+                raise ValueError(f"La funzione delta d({spec.time_expr_str}) definita nelle specifiche non compare nell'equazione. Rimuovila dalle specifiche o aggiungila all'equazione.")
         
         # Step LaTeX
         specs_latex = []
         for spec in self.delta_specs:
-            specs_latex.append(f"\\delta({to_latex(spec.time_expr_sym)}) \\rightarrow 1 \\text{{ se }} t={spec.active_at}")
+            specs_latex.append(f"\\delta({to_latex(spec.time_expr_sym)}) \\rightarrow 1 \\text{{ se }} t={spec.active_at} \\implies \\text{{Costante: }} {to_latex(spec.constant)}")
         
         self.steps_latex.append({
-            "title": "Parsing dell'Input",
-            "content": f"\\begin{{aligned}} &\\text{{Specifiche Delta:}}\\\\ &" + " \\\\ &".join(specs_latex) + f" \\\\ \\\\ &\\text{{Equazione:}} \\\\ &y(t) = {to_latex(self.equation_sym)} \\end{{aligned}}"
+            "title": "Parsing dell'Input ed Estrazione Costanti",
+            "content": f"\\begin{{aligned}} &\\text{{Specifiche Delta:}}\\\\ &" + " \\\\ &".join(specs_latex) + f" \\\\ \\\\ &\\text{{Equazione Inserita:}} \\\\ &y(t) = {to_latex(self.equation_sym)} \\end{{aligned}}"
         })
 
     def compute_impulse_response(self):
@@ -77,14 +112,18 @@ class ImpulseResponseSolver:
             
         h_calc_latex = []
         for t_val in range(self.M + 1):
-            eq_t = self.equation_sym
+            h_val = 0
+            active_terms_str = []
             for spec in self.delta_specs:
-                is_active = (t_val == spec.active_at)
-                term = self.d_func(spec.time_expr_sym)
-                eq_t = eq_t.subs(term, 1 if is_active else 0)
-                
-            self.h_values[t_val] = sp.simplify(eq_t)
-            h_calc_latex.append(f"h({t_val}) = {to_latex(self.h_values[t_val])}")
+                if t_val == spec.active_at:
+                    h_val += spec.constant
+                    active_terms_str.append(f"{to_latex(spec.constant)} \\cdot 1")
+            
+            self.h_values[t_val] = sp.simplify(h_val)
+            if active_terms_str:
+                h_calc_latex.append(f"h({t_val}) = " + " + ".join(active_terms_str) + f" = {to_latex(self.h_values[t_val])}")
+            else:
+                h_calc_latex.append(f"h({t_val}) = 0")
             
         self.steps_latex.append({
             "title": "Calcolo della Risposta Impulsiva \\( h(t) \\)",
@@ -227,8 +266,8 @@ class ImpulseResponseSolver:
                 "content": f"H_{{ver}}(z) = {to_latex(H_z_ver_simplified)} \\quad \\text{{vs}} \\quad H_{{orig}}(z) = {to_latex(H_z_orig)}"
             })
 
-    def solve(self, delta_specs_data, constants_str, equation_str):
-        self.parse_input(delta_specs_data, constants_str, equation_str)
+    def solve(self, delta_specs_data, equation_str):
+        self.parse_input(delta_specs_data, equation_str)
         self.compute_impulse_response()
         self.compute_transfer_function()
         self.identify_coefficients()
@@ -247,7 +286,6 @@ def pagina_html():
 def api_risolvi():
     data = request.get_json()
     delta_specs = data.get("delta_specs", [])
-    constants_str = data.get("constants", "")
     equation_str = data.get("equation", "")
     
     if not delta_specs or not equation_str:
@@ -255,7 +293,7 @@ def api_risolvi():
         
     try:
         solver = ImpulseResponseSolver()
-        steps = solver.solve(delta_specs, constants_str, equation_str)
+        steps = solver.solve(delta_specs, equation_str)
         return jsonify({"success": True, "latex": steps})
     except Exception as e:
         traceback.print_exc()
