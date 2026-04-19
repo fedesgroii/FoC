@@ -41,7 +41,7 @@ class ImpulseResponseSolver:
         self.steps_latex = []
         self.t_sym = sp.symbols('t', real=True)
         self.z_sym = sp.symbols('z')
-        self.d_func = sp.Function('d')
+        self.d_func = sp.Function('delta_0')
         
     def parse_input(self, delta_specs_data, equation_str):
         for spec in delta_specs_data:
@@ -97,11 +97,11 @@ class ImpulseResponseSolver:
         # Step LaTeX
         specs_latex = []
         for spec in self.delta_specs:
-            specs_latex.append(f"\\delta({to_latex(spec.time_expr_sym)}) \\rightarrow 1 \\text{{ se }} t={spec.active_at} \\implies \\text{{Costante: }} {to_latex(spec.constant)}")
+            specs_latex.append(f"{to_latex(self.d_func(spec.time_expr_sym))} \\rightarrow 1 \\text{{ se }} t={spec.active_at} \\implies \\text{{Costante: }} {to_latex(spec.constant)}")
         
         self.steps_latex.append({
             "title": "Parsing dell'Input ed Estrazione Costanti",
-            "content": f"\\begin{{aligned}} &\\text{{Specifiche Delta:}}\\\\ &" + " \\\\ &".join(specs_latex) + f" \\\\ \\\\ &\\text{{Equazione Inserita:}} \\\\ &y(t) = {to_latex(self.equation_sym)} \\end{{aligned}}"
+            "content": f"\\begin{{array}}{{l}} \\text{{Specifiche Delta:}}\\\\ " + " \\\\ ".join(specs_latex) + f" \\\\ \\\\ \\text{{Equazione Inserita:}} \\\\ y(t) = {to_latex(self.equation_sym)} \\end{{array}}"
         })
 
     def compute_impulse_response(self):
@@ -127,7 +127,7 @@ class ImpulseResponseSolver:
             
         self.steps_latex.append({
             "title": "Calcolo della Risposta Impulsiva \\( h(t) \\)",
-            "content": f"\\begin{{aligned}} " + " \\\\ ".join(h_calc_latex) + " \\end{{aligned}}"
+            "content": f"\\begin{{array}}{{l}} " + " \\\\ ".join(h_calc_latex) + " \\end{{array}}"
         })
 
     def compute_transfer_function(self):
@@ -186,7 +186,7 @@ class ImpulseResponseSolver:
         if self.n > 0:
             self.steps_latex.append({
                 "title": "Identificazione dei Coefficienti",
-                "content": f"\\begin{{aligned}} " + " \\\\ ".join(coeff_latex) + " \\end{{aligned}}"
+                "content": f"\\begin{{array}}{{l}} " + " \\\\ ".join(coeff_latex) + " \\end{{array}}"
             })
         else:
              self.steps_latex.append({
@@ -224,22 +224,22 @@ class ImpulseResponseSolver:
         html_content = ""
         if self.n > 0:
             html_content = f"""
-            <div style="display: flex; flex-direction: column; gap: 20px; align-items: center; margin-top: 15px;">
-                <div style="display: flex; gap: 50px; justify-content: center; align-items: center;">
-                    <div>\\[ A = {to_latex(self.A)} \\]</div>
-                    <div>\\[ B = {to_latex(self.B)} \\]</div>
+            <div style="display: flex; flex-direction: column; gap: 20px; align-items: center; margin-top: 15px; width: 100%;">
+                <div style="display: flex; gap: 50px; justify-content: center; align-items: center; width: 100%;">
+                    <div style="flex: 1; text-align: right;">\\[ \\text{{Matrice dinamica }} A \\; ({self.n} \\times {self.n}): \\quad A = {to_latex(self.A)} \\]</div>
+                    <div style="flex: 1; text-align: left;">\\[ \\text{{Matrice ingresso }} B \\; ({self.n} \\times 1): \\quad B = {to_latex(self.B)} \\]</div>
                 </div>
-                <div style="display: flex; gap: 50px; justify-content: center; align-items: center;">
-                    <div>\\[ C = {to_latex(self.C)} \\]</div>
-                    <div>\\[ D = {to_latex(self.D_mat)} \\]</div>
+                <div style="display: flex; gap: 50px; justify-content: center; align-items: center; width: 100%;">
+                    <div style="flex: 1; text-align: right;">\\[ \\text{{Matrice uscita }} C \\; (1 \\times {self.n}): \\quad C = {to_latex(self.C)} \\]</div>
+                    <div style="flex: 1; text-align: left;">\\[ \\text{{Legame diretto }} D \\; (1 \\times 1): \\quad D = {to_latex(self.D_mat)} \\]</div>
                 </div>
             </div>
             """
         else:
             html_content = f"""
-            <div style="display: flex; flex-direction: column; gap: 20px; align-items: center; margin-top: 15px;">
+            <div style="display: flex; flex-direction: column; gap: 20px; align-items: center; margin-top: 15px; width: 100%;">
                 <div style="display: flex; gap: 50px; justify-content: center; align-items: center;">
-                    <div>\\[ D = {to_latex(self.D_mat)} \\]</div>
+                    <div>\\[ \\text{{Legame diretto }} D \\; (1 \\times 1): \\quad D = {to_latex(self.D_mat)} \\]</div>
                 </div>
             </div>
             """
