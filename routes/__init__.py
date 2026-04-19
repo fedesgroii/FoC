@@ -9,6 +9,7 @@ from .condizioni_alle_differenze import condizioni_alle_differenze_bp
 from .decomposizione import compute as decomposizione_view
 from .stabilita import stabilita_bp
 from .da_soluzione_a_sistema import da_soluzione_a_sistema_bp
+from .delta_da_problema_a_soluzione import delta_da_problema_a_soluzione_bp
 
 def register_routes(app):
     app.register_blueprint(power_at_bp)
@@ -21,5 +22,6 @@ def register_routes(app):
     app.register_blueprint(condizioni_alle_differenze_bp)
     app.register_blueprint(stabilita_bp)
     app.register_blueprint(da_soluzione_a_sistema_bp)
+    app.register_blueprint(delta_da_problema_a_soluzione_bp)
     app.add_url_rule("/api/decomposizione", view_func=decomposizione_view, methods=["POST"]) 
    
