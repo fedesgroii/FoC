@@ -185,16 +185,49 @@
               output.innerHTML = `<p style="color:red; text-align:center;">${res.error || "Errore sconosciuto"}</p>`;
             } else {
               output.innerHTML = "";
-              if (res.latex && Array.isArray(res.latex)) {
+              const data = res.data;
+              
+              if (data.steps && Array.isArray(data.steps)) {
                 let stepCounter = 1;
-                res.latex.forEach((step) => {
+                data.steps.forEach((step) => {
                   let contentHtml = step.is_html ? step.content : `<p class="centered-math">\\[${step.content}\\]</p>`;
                   output.innerHTML += `
-                <p class="step-title"><b>${stepCounter++})</b> ${step.title}</p>
-                ${contentHtml}
-              `;
+                    <p class="step-title"><b>${stepCounter++})</b> ${step.title}</p>
+                    ${contentHtml}
+                  `;
                 });
               }
+              
+              // Sezione Equazione alle Differenze
+              if (data.difference_equation) {
+                 output.innerHTML += `
+                    <div style="margin-top: 30px; padding: 15px; border: 2px solid #007bff; border-radius: 8px; background-color: #f8f9fa;">
+                        <h4 style="text-align: center; color: #007bff;">Equazione alle Differenze</h4>
+                        <div style="text-align: center; font-size: 1.2em;">${data.difference_equation}</div>
+                    </div>
+                 `;
+              }
+              
+              // Sezione Variabili di Stato
+              if (data.state_variables) {
+                 output.innerHTML += `
+                    <div style="margin-top: 20px; padding: 15px; border: 1px solid #dee2e6; border-radius: 8px;">
+                        <h4 style="text-align: center;">Variabili di Stato (Forma Canonica)</h4>
+                        <div style="font-size: 1.1em; display: flex; justify-content: center;">${data.state_variables}</div>
+                    </div>
+                 `;
+              }
+              
+              // Sezione Matrici
+              if (data.matrices) {
+                 output.innerHTML += `
+                    <div style="margin-top: 20px; padding: 15px; border: 1px solid #dee2e6; border-radius: 8px;">
+                        <h4 style="text-align: center;">Matrici del Sistema nello Spazio di Stato</h4>
+                        <div>${data.matrices}</div>
+                    </div>
+                 `;
+              }
+              
               MathJax.typesetPromise([output]);
             }
           })
