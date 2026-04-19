@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="it">
+
 <head>
   <meta charset="UTF-8">
   <title>Dalla Soluzione al Sistema</title>
@@ -8,6 +9,7 @@
   <link rel="stylesheet" href="/static/style.css">
   <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 </head>
+
 <body>
   <div id="sidebar-placeholder"></div>
   <script>
@@ -37,111 +39,112 @@
         </p>
         <p class="description">
           Il sistema dedurrà automaticamente l'ordine, deriverà le equazioni necessarie, isolerà le costanti
-          e genererà l'equazione differenziale (o alle differenze) e le corrispondenti matrici in forma compagna.
+          e genererà l'equazione differenziale (o alle differenze) e le corrispondenti matrici finali.
         </p>
       </div>
     </div>
   </div>
 
   <div class="container">
-      <div style="margin-top: 20px; text-align: center;">
-        <span id="yLabel" style="font-size: 20px; margin: 0 10px;">\( y(t) = \)</span>
-        <input id="soluzioneInput" type="text" placeholder="es. c1*e^t + c2*e^(2*t) + t"
-               style="width: 350px; font-size: 18px; text-align: center; padding: 5px;">
-      </div>
+    <div style="margin-top: 20px; text-align: center;">
+      <span id="yLabel" style="font-size: 20px; margin: 0 10px;">\( y(t) = \)</span>
+      <input id="soluzioneInput" type="text" placeholder="es. c1*e^t + c2*e^(2*t) + t"
+        style="width: 350px; font-size: 18px; text-align: center; padding: 5px;">
+    </div>
 
-      <div style="margin:20px 0; font-size:16px; text-align:center;">
-        <label for="timeSelect" style="font-weight: 500;">Dominio Temporale:</label>
-        <select id="timeSelect" style="font-size: 16px; margin-left: 6px; padding: 5px;" onchange="updateTimeNotation()">
-          <option value="continuous" selected>Tempo Continuo (ℝ)</option>
-          <option value="discrete">Tempo Discreto (ℤ)</option>
-        </select>
-      </div>
+    <div style="margin:20px 0; font-size:16px; text-align:center;">
+      <label for="timeSelect" style="font-weight: 500;">Dominio Temporale:</label>
+      <select id="timeSelect" style="font-size: 16px; margin-left: 6px; padding: 5px;" onchange="updateTimeNotation()">
+        <option value="continuous" selected>Tempo Continuo (ℝ)</option>
+        <option value="discrete">Tempo Discreto (ℤ)</option>
+      </select>
+    </div>
 
-      <div style="margin-top: 20px; text-align: center;">
-        <button onclick="calcolaSistema()" style="padding: 10px 20px; font-size: 16px;">Risolvi</button>
-      </div>
+    <div style="margin-top: 20px; text-align: center;">
+      <button onclick="calcolaSistema()" style="padding: 10px 20px; font-size: 16px;">Risolvi</button>
+    </div>
 
-  <div class="container" style="margin-top: 30px;">
-    <main class="content">
-      <div id="output" class="output" style="margin-top:0px;">
-        <p style="text-align:center; color:#888; font-style:italic;">Nessuna soluzione inserita...</p>
-      </div>
-    </main>
-  </div>
+    <div class="container" style="margin-top: 30px;">
+      <main class="content">
+        <div id="output" class="output" style="margin-top:0px;">
+          <p style="text-align:center; color:#888; font-style:italic;">Nessuna soluzione inserita...</p>
+        </div>
+      </main>
+    </div>
 
-  <script>
-    function updateTimeNotation() {
-      const timeSelect = document.getElementById("timeSelect").value;
-      const yLabel = document.getElementById("yLabel");
-      const input = document.getElementById("soluzioneInput");
-      
-      if (timeSelect === 'continuous') {
-        yLabel.innerHTML = '\\( y(t) = \\)';
-        input.placeholder = "es. c1*e^t + c2*e^(2*t) + t";
-      } else {
-        yLabel.innerHTML = '\\( y(t) = \\)'; // Manteniamo y(t) come input soluzione
-        input.placeholder = "es. c1*2^t + c2*3^t";
-      }
-      MathJax.typesetPromise([yLabel]);
-    }
+    <script>
+      function updateTimeNotation() {
+        const timeSelect = document.getElementById("timeSelect").value;
+        const yLabel = document.getElementById("yLabel");
+        const input = document.getElementById("soluzioneInput");
 
-    function calcolaSistema() {
-      const output = document.getElementById("output");
-      const soluzione = document.getElementById("soluzioneInput").value.trim();
-      const timeType = document.getElementById("timeSelect").value;
-
-      if (!soluzione) {
-        output.innerHTML = `<p style="color:red; text-align:center;">Inserire una soluzione \( y(t) \)</p>`;
-        MathJax.typesetPromise([output]);
-        return;
-      }
-
-      output.innerHTML = `<p style="text-align:center; color:#888; font-style:italic;">Calcolo in corso...</p>`;
-
-      fetch('/api/da_soluzione_a_sistema', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ soluzione: soluzione, time_type: timeType })
-      })
-      .then(async r => {
-        const contentType = r.headers.get("content-type");
-        if (!r.ok || !contentType || !contentType.includes("application/json")) {
-          const text = await r.text();
-          throw new Error(`Risposta non valida dal server: ${text.slice(0, 100)}...`);
-        }
-        return r.json();
-      })
-      .then(res => {
-        if (!res.success) {
-          output.innerHTML = `<p style="color:red; text-align:center;">${res.error || "Errore sconosciuto"}</p>`;
+        if (timeSelect === 'continuous') {
+          yLabel.innerHTML = '\\( y(t) = \\)';
+          input.placeholder = "es. c1*e^t + c2*e^(2*t) + t";
         } else {
-          output.innerHTML = "";
-          if (res.latex && Array.isArray(res.latex)) {
-            let stepCounter = 0;
-            res.latex.forEach((step) => {
-              let contentHtml = step.is_html ? step.content : `<p class="centered-math">\\[${step.content}\\]</p>`;
-              output.innerHTML += `
+          yLabel.innerHTML = '\\( y(t) = \\)'; // Manteniamo y(t) come input soluzione
+          input.placeholder = "es. c1*2^t + c2*3^t";
+        }
+        MathJax.typesetPromise([yLabel]);
+      }
+
+      function calcolaSistema() {
+        const output = document.getElementById("output");
+        const soluzione = document.getElementById("soluzioneInput").value.trim();
+        const timeType = document.getElementById("timeSelect").value;
+
+        if (!soluzione) {
+          output.innerHTML = `<p style="color:red; text-align:center;">Inserire una soluzione \( y(t) \)</p>`;
+          MathJax.typesetPromise([output]);
+          return;
+        }
+
+        output.innerHTML = `<p style="text-align:center; color:#888; font-style:italic;">Calcolo in corso...</p>`;
+
+        fetch('/api/da_soluzione_a_sistema', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ soluzione: soluzione, time_type: timeType })
+        })
+          .then(async r => {
+            const contentType = r.headers.get("content-type");
+            if (!r.ok || !contentType || !contentType.includes("application/json")) {
+              const text = await r.text();
+              throw new Error(`Risposta non valida dal server: ${text.slice(0, 100)}...`);
+            }
+            return r.json();
+          })
+          .then(res => {
+            if (!res.success) {
+              output.innerHTML = `<p style="color:red; text-align:center;">${res.error || "Errore sconosciuto"}</p>`;
+            } else {
+              output.innerHTML = "";
+              if (res.latex && Array.isArray(res.latex)) {
+                let stepCounter = 0;
+                res.latex.forEach((step) => {
+                  let contentHtml = step.is_html ? step.content : `<p class="centered-math">\\[${step.content}\\]</p>`;
+                  output.innerHTML += `
                 <p class="step-title"><b>${stepCounter++})</b> ${step.title}</p>
                 ${contentHtml}
               `;
-            });
-          }
-          MathJax.typesetPromise([output]);
-        }
-      })
-      .catch(err => {
-        output.innerHTML = `<p style="color:red; text-align:center;">${err.message || "Errore sconosciuto"}</p>`;
-      });
-    }
-
-    // Aggiungi listener per tasto Invio
-    document.getElementById("soluzioneInput").addEventListener("keypress", function(event) {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        calcolaSistema();
+                });
+              }
+              MathJax.typesetPromise([output]);
+            }
+          })
+          .catch(err => {
+            output.innerHTML = `<p style="color:red; text-align:center;">${err.message || "Errore sconosciuto"}</p>`;
+          });
       }
-    });
-  </script>
+
+      // Aggiungi listener per tasto Invio
+      document.getElementById("soluzioneInput").addEventListener("keypress", function (event) {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          calcolaSistema();
+        }
+      });
+    </script>
 </body>
+
 </html>

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Da Delta a Sistema</title>
+  <meta name="viewport" content="width=device-width, initial-scale=0.8">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <style>
+    .delta-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .delta-input {
+      width: 120px;
+      padding: 5px;
+      text-align: center;
+    }
+    .remove-btn {
+      background-color: #dc3545;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .add-btn {
+      background-color: #28a745;
+      color: white;
+      border: none;
+      padding: 5px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="sidebar-placeholder"></div>
+  <script>
+    fetch('/static/partials/sidebar.html')
+      .then(res => res.text())
+      .then(html => {
+        document.getElementById('sidebar-placeholder').innerHTML = html;
+
+        window.openNav = function () {
+          const sidebar = document.getElementById("mySidebar");
+          if (sidebar) sidebar.style.width = "250px";
+        };
+
+        window.closeNav = function () {
+          const sidebar = document.getElementById("mySidebar");
+          if (sidebar) sidebar.style.width = "0";
+        };
+      });
+  </script>
+  <div id="main">
+    <div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 0px;">
+      <button class="openbtn" onclick="openNav()" style="padding-top: 0px;">☰</button>
+      <div>
+        <h2 style="margin: 0; font-size: 25px;">Da Problema Delta a Sistema</h2>
+        <p class="description">
+          Inserisci le specifiche delle funzioni delta, le costanti e l'equazione finale \( y(t) \).
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="container" style="max-width: 800px;">
+    
+    <div style="margin-top: 20px; text-align: center;">
+      <h4>Specifiche delle funzioni Delta</h4>
+      <div id="delta-container">
+        <!-- Righe aggiunte dinamicamente -->
+      </div>
+      <button class="add-btn" onclick="addDeltaRow()">+ Aggiungi Delta</button>
+    </div>
+
+    <div style="margin-top: 20px; text-align: center;">
+      <h4>Costanti</h4>
+      <input id="constantsInput" type="text" placeholder="es. c1, c2, c3" style="width: 350px; font-size: 18px; text-align: center; padding: 5px;">
+    </div>
+
+    <div style="margin-top: 20px; text-align: center;">
+      <h4>Equazione</h4>
+      <span style="font-size: 20px; margin: 0 10px;">\( y(t) = \)</span>
+      <input id="equationInput" type="text" placeholder="es. d(t-1)*c1 + d(t)*c2" style="width: 350px; font-size: 18px; text-align: center; padding: 5px;">
+    </div>
+
+    <div style="margin-top: 30px; text-align: center;">
+      <button onclick="calcolaSistema()" style="padding: 10px 30px; font-size: 18px;">Risolvi</button>
+    </div>
+
+    <div class="container" style="margin-top: 30px;">
+      <main class="content">
+        <div id="output" class="output" style="margin-top:0px;">
+          <p style="text-align:center; color:#888; font-style:italic;">In attesa di input...</p>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      let deltaCounter = 0;
+
+      function addDeltaRow(timeExpr = "t", activeAt = "0") {
+        deltaCounter++;
+        const container = document.getElementById("delta-container");
+        const row = document.createElement("div");
+        row.className = "delta-row";
+        row.id = `delta-row-${deltaCounter}`;
+        
+        row.innerHTML = `
+          <span>Espressione: d(</span>
+          <input type="text" class="delta-input time-expr" value="${timeExpr}" placeholder="es. t-1">
+          <span>)</span>
+          <span style="margin-left: 20px;">Attiva (vale 1) a: t =</span>
+          <input type="number" class="delta-input active-at" value="${activeAt}">
+          <button class="remove-btn" onclick="removeDeltaRow(${deltaCounter})" style="margin-left: 10px;">X</button>
+        `;
+        
+        container.appendChild(row);
+      }
+
+      function removeDeltaRow(id) {
+        const row = document.getElementById(`delta-row-${id}`);
+        if (row) {
+          row.remove();
+        }
+      }
+
+      // Aggiungiamo due righe di default all'avvio
+      window.onload = () => {
+        addDeltaRow("t", "0");
+        addDeltaRow("t-1", "1");
+      };
+
+      function calcolaSistema() {
+        const output = document.getElementById("output");
+        
+        // Raccolta Delta
+        const deltaSpecs = [];
+        const rows = document.querySelectorAll('.delta-row');
+        rows.forEach(row => {
+          const timeExpr = row.querySelector('.time-expr').value.trim();
+          const activeAt = row.querySelector('.active-at').value.trim();
+          if (timeExpr && activeAt !== "") {
+            deltaSpecs.push({ time_expr: timeExpr, active_at: activeAt });
+          }
+        });
+
+        const constants = document.getElementById("constantsInput").value.trim();
+        const equation = document.getElementById("equationInput").value.trim();
+
+        if (deltaSpecs.length === 0) {
+          output.innerHTML = `<p style="color:red; text-align:center;">Inserire almeno una funzione Delta</p>`;
+          return;
+        }
+        if (!equation) {
+          output.innerHTML = `<p style="color:red; text-align:center;">Inserire l'equazione</p>`;
+          return;
+        }
+
+        output.innerHTML = `<p style="text-align:center; color:#888; font-style:italic;">Calcolo in corso...</p>`;
+
+        fetch('/api/delta_da_problema_a_soluzione', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            delta_specs: deltaSpecs, 
+            constants: constants,
+            equation: equation
+          })
+        })
+          .then(async r => {
+            const contentType = r.headers.get("content-type");
+            if (!r.ok || !contentType || !contentType.includes("application/json")) {
+              const text = await r.text();
+              throw new Error(`Risposta non valida dal server: ${text.slice(0, 100)}...`);
+            }
+            return r.json();
+          })
+          .then(res => {
+            if (!res.success) {
+              output.innerHTML = `<p style="color:red; text-align:center;">${res.error || "Errore sconosciuto"}</p>`;
+            } else {
+              output.innerHTML = "";
+              if (res.latex && Array.isArray(res.latex)) {
+                let stepCounter = 1;
+                res.latex.forEach((step) => {
+                  let contentHtml = step.is_html ? step.content : `<p class="centered-math">\\[${step.content}\\]</p>`;
+                  output.innerHTML += `
+                <p class="step-title"><b>${stepCounter++})</b> ${step.title}</p>
+                ${contentHtml}
+              `;
+                });
+              }
+              MathJax.typesetPromise([output]);
+            }
+          })
+          .catch(err => {
+            output.innerHTML = `<p style="color:red; text-align:center;">${err.message || "Errore sconosciuto"}</p>`;
+          });
+      }
+    </script>
+</body>
+
+</html>
