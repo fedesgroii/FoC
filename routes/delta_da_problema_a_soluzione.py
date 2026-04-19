@@ -97,11 +97,12 @@ class ImpulseResponseSolver:
         # Step LaTeX
         specs_latex = []
         for spec in self.delta_specs:
-            specs_latex.append(f"{to_latex(self.d_func(spec.time_expr_sym))} \\rightarrow 1 \\text{{ se }} t={spec.active_at} \\implies \\text{{Costante: }} {to_latex(spec.constant)}")
+            specs_latex.append(f"<div style='margin-bottom: 5px;'>\\[ {to_latex(self.d_func(spec.time_expr_sym))} \\rightarrow 1 \\text{{ se }} t={spec.active_at} \\implies \\text{{Costante: }} {to_latex(spec.constant)} \\]</div>")
         
         self.steps_latex.append({
             "title": "Parsing dell'Input ed Estrazione Costanti",
-            "content": f"\\begin{{array}}{{l}} \\text{{Specifiche Delta:}}\\\\ " + " \\\\ ".join(specs_latex) + f" \\\\ \\\\ \\text{{Equazione Inserita:}} \\\\ y(t) = {to_latex(self.equation_sym)} \\end{{array}}"
+            "content": f"<div style='margin-bottom: 10px;'><strong>Specifiche Delta:</strong></div>" + "".join(specs_latex) + f"<div style='margin-top: 15px; margin-bottom: 10px;'><strong>Equazione Inserita:</strong></div><div>\\[ y(t) = {to_latex(self.equation_sym)} \\]</div>",
+            "is_html": True
         })
 
     def compute_impulse_response(self):
@@ -110,24 +111,35 @@ class ImpulseResponseSolver:
         else:
             self.M = max(spec.active_at for spec in self.delta_specs)
             
-        h_calc_latex = []
+        h_calc_html = ""
         for t_val in range(self.M + 1):
             h_val = 0
             active_terms_str = []
+            explanations = []
             for spec in self.delta_specs:
                 if t_val == spec.active_at:
                     h_val += spec.constant
-                    active_terms_str.append(f"{to_latex(spec.constant)} \\cdot 1")
+                    active_terms_str.append(f"\\left({to_latex(spec.constant)}\\right) \\cdot 1")
+                    explanations.append(f"\\( {to_latex(self.d_func(spec.time_expr_sym))} \\) è attiva (vale 1)")
+                else:
+                    explanations.append(f"\\( {to_latex(self.d_func(spec.time_expr_sym))} \\) è inattiva (vale 0)")
             
             self.h_values[t_val] = sp.simplify(h_val)
+            
+            h_calc_html += f"<div style='margin-top: 15px;'><strong>Per \\( t={t_val} \\):</strong><ul>"
+            for expl in explanations:
+                h_calc_html += f"<li>{expl}</li>"
+            h_calc_html += "</ul></div>"
+            
             if active_terms_str:
-                h_calc_latex.append(f"h({t_val}) = " + " + ".join(active_terms_str) + f" = {to_latex(self.h_values[t_val])}")
+                h_calc_html += f"<div>\\[ h({t_val}) = " + " + ".join(active_terms_str) + f" = {to_latex(self.h_values[t_val])} \\]</div>"
             else:
-                h_calc_latex.append(f"h({t_val}) = 0")
+                h_calc_html += f"<div>\\[ h({t_val}) = 0 \\]</div>"
             
         self.steps_latex.append({
             "title": "Calcolo della Risposta Impulsiva \\( h(t) \\)",
-            "content": f"\\begin{{array}}{{l}} " + " \\\\ ".join(h_calc_latex) + " \\end{{array}}"
+            "content": h_calc_html,
+            "is_html": True
         })
 
     def compute_transfer_function(self):
@@ -139,9 +151,18 @@ class ImpulseResponseSolver:
         self.D_z = self.z_sym**self.M
         self.H_z = self.N_z / self.D_z
         
+        sum_str = " + ".join([f"h({t}) z^{{{-t}}}" for t in range(self.M + 1)])
+        subst_str = " + ".join([f"\\left({to_latex(self.h_values[t])}\\right) z^{{{-t}}}" for t in range(self.M + 1)])
+        
+        content_html = f"<div>\\[ H(z) = \\sum_{{t=0}}^{{{self.M}}} h(t) z^{{-t}} \\]</div>"
+        content_html += f"<div>\\[ H(z) = {sum_str} \\]</div>"
+        content_html += f"<div>\\[ H(z) = {subst_str} \\]</div>"
+        content_html += f"<div>\\[ H(z) = \\frac{{{to_latex(sp.expand(self.N_z))}}}{{{to_latex(self.D_z)}}} \\]</div>"
+        
         self.steps_latex.append({
             "title": "Funzione di Trasferimento \\( H(z) \\)",
-            "content": f"H(z) = \\sum_{{t=0}}^{{{self.M}}} h(t) z^{{-t}} = \\frac{{{to_latex(sp.expand(self.N_z))}}}{{{to_latex(self.D_z)}}}"
+            "content": content_html,
+            "is_html": True
         })
 
     def identify_coefficients(self):
@@ -179,19 +200,34 @@ class ImpulseResponseSolver:
         self.a_coeffs = [D_poly.coeff(self.z_sym, i) for i in range(self.n)]
         self.b_coeffs = [N_din.coeff(self.z_sym, i) for i in range(self.n)]
         
-        coeff_latex = []
+        coeff_html = "<div style='display: flex; justify-content: space-around; margin-top: 15px;'>"
+        
+        # a_i coeffs
+        coeff_html += "<div><strong>Coefficienti Denominatore:</strong><ul>"
         for i in range(self.n):
-            coeff_latex.append(f"a_{{{i}}} = {to_latex(self.a_coeffs[i])}, \\quad b_{{{i}}} = {to_latex(self.b_coeffs[i])}")
-            
+            coeff_html += f"<li>\\( a_{{{i}}} = {to_latex(self.a_coeffs[i])} \\)</li>"
+        coeff_html += "</ul></div>"
+        
+        # b_i coeffs
+        coeff_html += "<div><strong>Coefficienti Numeratore (dinamico):</strong><ul>"
+        for i in range(self.n):
+            coeff_html += f"<li>\\( b_{{{i}}} = {to_latex(self.b_coeffs[i])} \\)</li>"
+        coeff_html += "</ul></div>"
+        
+        coeff_html += "</div>"
+        coeff_html += f"<div style='text-align: center; margin-top: 10px;'><strong>Termine diretto:</strong> \\( D = {to_latex(self.D_val)} \\)</div>"
+        
         if self.n > 0:
             self.steps_latex.append({
                 "title": "Identificazione dei Coefficienti",
-                "content": f"\\begin{{array}}{{l}} " + " \\\\ ".join(coeff_latex) + " \\end{{array}}"
+                "content": coeff_html,
+                "is_html": True
             })
         else:
              self.steps_latex.append({
                 "title": "Identificazione dei Coefficienti",
-                "content": "\\text{Sistema di ordine 0, nessun coefficiente dinamico.}"
+                "content": "<p>Sistema di ordine 0, nessun coefficiente dinamico. Solo termine diretto \\( D \\).</p>",
+                "is_html": True
             })
 
     def build_companion_matrices(self):
@@ -261,9 +297,37 @@ class ImpulseResponseSolver:
             # Formattiamo H_z originale raccogliendo a denominatore comune per verifica visuale
             H_z_orig = sp.cancel(self.H_z)
             
+            content_html = f"<div>\\[ H_{{ver}}(z) = {to_latex(H_z_ver_simplified)} \\]</div>"
+            content_html += f"<div>\\[ H_{{orig}}(z) = {to_latex(H_z_orig)} \\]</div>"
+            
+            diff = sp.simplify(H_z_ver_simplified - H_z_orig)
+            if diff == 0:
+                content_html += "<div style='text-align: center; margin-top: 15px; padding: 10px; background-color: #d4edda; color: #155724; border-radius: 5px; border: 1px solid #c3e6cb;'>"
+                content_html += "<strong>Le due funzioni di trasferimento coincidono perfettamente, la soluzione è verificata e corretta!</strong></div>"
+            else:
+                content_html += "<div style='text-align: center; margin-top: 15px; padding: 10px; background-color: #f8d7da; color: #721c24; border-radius: 5px; border: 1px solid #f5c6cb;'>"
+                content_html += "<strong>Le due funzioni di trasferimento NON coincidono. C'è un problema nella costruzione.</strong></div>"
+            
             self.steps_latex.append({
                 "title": "Verifica \\( H(z) = C(zI - A)^{-1}B + D \\)",
-                "content": f"H_{{ver}}(z) = {to_latex(H_z_ver_simplified)} \\quad \\text{{vs}} \\quad H_{{orig}}(z) = {to_latex(H_z_orig)}"
+                "content": content_html,
+                "is_html": True
+            })
+            
+    def build_state_equations(self):
+        if self.n > 0:
+            x_k1 = sp.Matrix([sp.symbols(f'x_{{{i+1}}}(k+1)') for i in range(self.n)])
+            x_k = sp.Matrix([sp.symbols(f'x_{{{i+1}}}(k)') for i in range(self.n)])
+            u_k = sp.symbols('u(k)')
+            y_k = sp.symbols('y(k)')
+            
+            content_html = f"<div style='margin-top: 15px;'>\\[ {to_latex(x_k1)} = {to_latex(self.A)} {to_latex(x_k)} + {to_latex(self.B)} {to_latex(u_k)} \\]</div>"
+            content_html += f"<div style='margin-top: 15px;'>\\[ {to_latex(y_k)} = {to_latex(self.C)} {to_latex(x_k)} + {to_latex(self.D_mat)} {to_latex(u_k)} \\]</div>"
+            
+            self.steps_latex.append({
+                "title": "Equazioni di Stato Finali (Tempo Discreto)",
+                "content": content_html,
+                "is_html": True
             })
 
     def solve(self, delta_specs_data, equation_str):
@@ -272,6 +336,7 @@ class ImpulseResponseSolver:
         self.compute_transfer_function()
         self.identify_coefficients()
         self.build_companion_matrices()
+        self.build_state_equations()
         self.verify_solution()
         return self.steps_latex
 
