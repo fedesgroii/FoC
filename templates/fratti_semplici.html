@@ -105,12 +105,32 @@
                         if (res.latex && Array.isArray(res.latex)) {
                             let stepCounter = 1;
                             res.latex.forEach((step) => {
+                                let boxStyle = "";
+                                let titleStyle = "";
+                                let stepTitlePrefix = "";
+
+                                if (step.type === "initial") {
+                                    boxStyle = "border-left: 5px solid #6c757d; background: #f8f9fa;";
+                                    titleStyle = "color: #495057;";
+                                    stepTitlePrefix = "";
+                                } else if (step.type === "final") {
+                                    boxStyle = "border: 2px solid #28a745; background: #f0fff4; box-shadow: 0 4px 6px rgba(40, 167, 69, 0.1);";
+                                    titleStyle = "color: #28a745; font-size: 1.2em;";
+                                    stepTitlePrefix = "";
+                                } else {
+                                    boxStyle = "border-left: 5px solid #007bff; background: #f9f9f9;";
+                                    titleStyle = "color: #007bff;";
+                                    stepTitlePrefix = `STEP ${stepCounter++}: `;
+                                }
+
                                 output.innerHTML += `
-                                    <div style="margin-bottom: 30px; padding: 15px; background: #f9f9f9; border-radius: 8px; border-left: 5px solid #007bff;">
-                                        <p class="step-title" style="color: #007bff; font-weight: bold; margin-bottom: 10px;">
-                                            STEP ${stepCounter++}: ${step.title}
+                                    <div style="margin-bottom: 30px; padding: 20px; border-radius: 10px; ${boxStyle}">
+                                        <p class="step-title" style="${titleStyle} font-weight: bold; margin-bottom: 10px;">
+                                            ${stepTitlePrefix}${step.title}
                                         </p>
-                                        <p class="centered-math" style="overflow-x: auto; padding: 10px 0;">\\[${step.content}\\]</p>
+                                        <div class="centered-math" style="overflow-x: auto; padding: 10px 0; font-size: ${step.type === 'final' ? '1.4em' : '1.1em'};">
+                                            \\[${step.content}\\]
+                                        </div>
                                     </div>
                                 `;
                             });
