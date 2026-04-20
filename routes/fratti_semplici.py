@@ -1,148 +1,171 @@
-import string
 import sympy as sp
+from sympy.abc import s
 from flask import Blueprint, request, jsonify
+import re
 
 fratti_semplici_bp = Blueprint("fratti_semplici", __name__)
 
 def to_latex(expr):
+    """Converte un'espressione sympy in stringa LaTeX."""
     return sp.latex(expr)
+
+def parse_polynomial(expr_str):
+    """Pulisce e parsa una stringa in un'espressione sympy."""
+    # Sostituisce ^ con **
+    clean = expr_str.replace('^', '**')
+    # Gestisce moltiplicazioni implicite (es: 3s -> 3*s)
+    clean = re.sub(r'(\d)([a-zA-Z])', r'\1*\2', clean)
+    # Rimuove spazi superflui
+    clean = clean.strip()
+    return sp.parse_expr(clean, local_dict={'s': s})
 
 @fratti_semplici_bp.route('/api/fratti_semplici', methods=['POST'])
 def api_fratti_semplici():
     data = request.get_json()
-    numerator_str = data.get("numerator", "")
-    denominator_str = data.get("denominator", "")
+    num_str = data.get("numerator", "")
+    den_str = data.get("denominator", "")
 
-    if not numerator_str or not denominator_str:
+    if not num_str or not den_str:
         return jsonify({"success": False, "error": "Numeratore e denominatore sono richiesti."})
 
     try:
-        s = sp.symbols('s')
-        # Pre-process strings
-        # replace ^ with ** and ensure it's treated as a symbolic expression
-        n_clean = numerator_str.replace('^', '**')
-        d_clean = denominator_str.replace('^', '**')
-        
-        N = sp.parse_expr(n_clean, local_dict={'s': s})
-        D = sp.parse_expr(d_clean, local_dict={'s': s})
+        # STEP 0: Parsing e Verifica Preliminare
+        N = parse_polynomial(num_str)
+        D = parse_polynomial(den_str)
 
         if D == 0:
             return jsonify({"success": False, "error": "Il denominatore non può essere zero."})
 
         latex_steps = []
-
-        # STEP 1: Verifica del grado
+        
         deg_N = sp.degree(N, s)
         deg_D = sp.degree(D, s)
-        Q = 0
-        R = N
+        
+        Q, R = 0, N
         if deg_N >= deg_D:
             Q, R = sp.div(N, D, s)
             latex_steps.append({
-                "title": "Step 1: Verifica del grado e Divisione Polinomiale",
-                "content": rf"\text{{Poiché grado(N) }} ({deg_N}) \ge \text{{ grado(D) }} ({deg_D}) \text{{, eseguiamo la divisione:}}" + 
-                           rf" \\ F(s) = {to_latex(Q)} + \frac{{{to_latex(R)}}}{{{to_latex(D)}}}"
+                "title": "Parsing e Verifica Preliminare",
+                "content": rf"\text{{Poiché }} \deg(N) \ge \deg(D) \text{{ ({deg_N} \ge {deg_D}), eseguiamo la divisione:}} \\" +
+                           rf"\frac{{N(s)}}{{D(s)}} = {to_latex(Q)} + \frac{{{to_latex(R)}}}{{{to_latex(D)}}}"
             })
         else:
             latex_steps.append({
-                "title": "Step 1: Verifica del grado",
-                "content": rf"\text{{Grado(N)}} = {deg_N} < \text{{Grado(D)}} = {deg_D}. \text{{ Nessuna divisione necessaria.}}"
+                "title": "Parsing e Verifica Preliminare",
+                "content": rf"\deg(N) = {deg_N} < \deg(D) = {deg_D}. \text{{ La funzione è già propria (non serve divisione).}}"
             })
 
-        # STEP 2: Fattorizzazione del denominatore
-        D_factored = sp.factor(D, s)
-        latex_steps.append({
-            "title": "Step 2: Fattorizzazione del denominatore",
-            "content": rf"D(s) = {to_latex(D_factored)}"
-        })
-
-        # STEP 3 & 4: Imposta la struttura della decomposizione
-        factors = sp.factor_list(D, s)[1]
-        terms = []
-        constants = []
+        # STEP 1: Scomposizione del Denominatore
+        # factor_list restituisce (coeff_principale, [(fattore, molteplicità), ...])
+        D_parts = sp.factor_list(D)
+        lead_coeff = D_parts[0]
+        factors_data = D_parts[1]
+        D_factored = sp.factor(D)
         
-        # Determine number of constants needed
-        # The number of constants is exactly deg_D
-        num_constants = deg_D
-        all_const_syms = []
-        if num_constants <= 26:
-            all_const_syms = [sp.Symbol(string.ascii_uppercase[i]) for i in range(num_constants)]
-        else:
-            all_const_syms = [sp.Symbol(f"A_{{{i+1}}}") for i in range(num_constants)]
-            
-        c_idx = 0
-        for factor, mult in factors:
+        classification = []
+        for factor, mult in factors_data:
             f_deg = sp.degree(factor, s)
             if f_deg == 1:
-                # Linear factor (s - p)^mult
-                for i in range(1, mult + 1):
-                    if c_idx < len(all_const_syms):
-                        c = all_const_syms[c_idx]
-                        terms.append(c / (factor**i))
-                        constants.append(c)
-                        c_idx += 1
+                if mult == 1:
+                    classification.append(rf"\text{{Polo reale semplice: }} s = {to_latex(sp.solve(factor, s)[0])}")
+                else:
+                    classification.append(rf"\text{{Polo reale multiplo: }} s = {to_latex(sp.solve(factor, s)[0])} \text{{ con molteplicità }} {mult}")
+            elif f_deg == 2:
+                classification.append(rf"\text{{Poli complessi coniugati (fattore irriducibile): }} {to_latex(factor)}")
             else:
-                # Quadratic factor (as^2 + bs + c)^mult
-                for i in range(1, mult + 1):
-                    if c_idx + 1 < len(all_const_syms):
-                        c1 = all_const_syms[c_idx]
-                        c2 = all_const_syms[c_idx+1]
-                        terms.append((c1 * s + c2) / (factor**i))
-                        constants.extend([c1, c2])
-                        c_idx += 2
-        
-        struct_expr = sp.Add(*terms, evaluate=False)
+                classification.append(rf"\text{{Fattore di grado {f_deg}: }} {to_latex(factor)}")
+
         latex_steps.append({
-            "title": "Step 3 & 4: Struttura della decomposizione",
+            "title": "Scomposizione del Denominatore",
+            "content": rf"D(s) = {to_latex(D_factored)} \\ " + r" \\ ".join(classification)
+        })
+
+        # STEP 2: Scrittura Forma Generica della Scomposizione
+        generic_terms = []
+        constants = []
+        const_idx = 1
+        
+        # Gestione del coefficiente principale se diverso da 1
+        # Lo incorporiamo nel denominatore dei fratti per semplicità
+        for factor, mult in factors_data:
+            f_deg = sp.degree(factor, s)
+            if f_deg == 1:
+                for i in range(1, mult + 1):
+                    c = sp.Symbol(f"A_{const_idx}")
+                    generic_terms.append(c / (factor**i))
+                    constants.append(c)
+                    const_idx += 1
+            elif f_deg == 2:
+                for i in range(1, mult + 1):
+                    b = sp.Symbol(f"B_{const_idx}")
+                    c = sp.Symbol(f"C_{const_idx}")
+                    generic_terms.append((b * s + c) / (factor**i))
+                    constants.extend([b, c])
+                    const_idx += 1
+        
+        # Se c'è un lead_coeff, la scomposizione R/D = (1/lead_coeff) * generic_expr
+        # Ma è più facile considerare R / (D/lead_coeff) = generic_expr
+        # Quindi R = lead_coeff * generic_expr * (D/lead_coeff) = generic_expr * D
+        struct_expr = sp.Add(*generic_terms, evaluate=False)
+        latex_steps.append({
+            "title": "Scrittura Forma Generica",
             "content": rf"\frac{{{to_latex(R)}}}{{{to_latex(D)}}} = {to_latex(struct_expr)}"
         })
 
-        # STEP 5: Moltiplica per il denominatore comune
-        # N_eq = R = struct_expr * D
-        # To show it nicely, we multiply each term by D
-        eq_terms = []
-        for term in terms:
-            eq_terms.append(sp.simplify(term * D))
+        # STEP 3: Calcolo Coefficienti (Sistema Lineare)
+        # R(s) = generic_expr * D(s)
+        # Semplifichiamo ogni termine individualmente per garantire che s a denominatore si cancellino
+        eq_rhs_sum = 0
+        for term in generic_terms:
+            eq_rhs_sum += sp.simplify(term * D)
         
-        eq_rhs = sp.Add(*eq_terms, evaluate=False)
-        latex_steps.append({
-            "title": "Step 5: Moltiplicazione per il denominatore comune",
-            "content": rf"{to_latex(R)} = {to_latex(eq_rhs)}"
-        })
-
-        # STEP 6: Determina i coefficienti incogniti
-        # Expand RHS to compare coefficients
-        eq_rhs_expanded = sp.expand(eq_rhs)
+        eq_rhs = sp.expand(eq_rhs_sum)
+        
+        # Generiamo il sistema uguagliando i coefficienti delle potenze di s
         coeffs_system = []
+        # Consideriamo tutte le potenze fino a deg_D - 1
         for i in range(deg_D):
-            eq = sp.Eq(sp.collect(R, s).coeff(s, i), sp.collect(eq_rhs_expanded, s).coeff(s, i))
-            coeffs_system.append(eq)
-        
+            lhs_c = sp.collect(R, s).coeff(s, i)
+            rhs_c = sp.collect(eq_rhs, s).coeff(s, i)
+            coeffs_system.append(sp.Eq(lhs_c, rhs_c))
+            
         sol = sp.solve(coeffs_system, constants)
         
-        # If solve returns a list, take the first one
+        # Se sol è una lista (rari casi con solve), prendiamo il primo dizionario
         if isinstance(sol, list):
-            sol = sol[0]
-            
-        sol_latex = []
-        for c in constants:
-            val = sol.get(c, 0)
-            sol_latex.append(rf"{to_latex(c)} = {to_latex(val)}")
+            sol = sol[0] if sol else {}
+
+        sol_items = [rf"{to_latex(c)} = {to_latex(sol.get(c, 0))}" for c in constants]
         
         latex_steps.append({
-            "title": "Step 6: Sistema di equazioni e coefficienti",
-            "content": r" \begin{cases} " + r" \\ ".join([to_latex(eq) for eq in coeffs_system]) + r" \end{cases} " + 
-                       r" \implies " + r", \ ".join(sol_latex)
+            "title": "Calcolo Coefficienti",
+            "content": rf"\text{{Uguagliando i coefficienti:}} \\ \begin{cases} " + 
+                       r" \\ ".join([to_latex(eq) for eq in coeffs_system]) + 
+                       r" \end{cases} \\ \implies " + r", \ ".join(sol_items)
         })
 
-        # STEP 7: Risultato finale
-        # Use sp.apart to get a clean final version as well, but substituted struct is what's asked
-        final_decomp_part = struct_expr.subs(sol)
-        final_result = Q + final_decomp_part
+        # STEP 4: Assembly del Risultato
+        final_decomp = struct_expr.subs(sol)
+        final_result = Q + final_decomp
         
         latex_steps.append({
-            "title": "Step 7: Risultato finale",
+            "title": "Assembly del Risultato",
             "content": rf"F(s) = {to_latex(final_result)}"
+        })
+
+        # STEP 5: Verifica
+        # Ricostruiamo la frazione originale per verifica
+        reconstructed = sp.together(final_decomp)
+        # Nota: reconstructed avrà denominatore fattorizzato, confrontiamo con R/D
+        diff = sp.simplify(R/D - final_decomp)
+        is_correct = (diff == 0)
+        
+        verification_msg = r"\text{Verifica completata con successo! } \checkmark" if is_correct else r"\text{Attenzione: discrepanza rilevata nella verifica. } \times"
+        
+        latex_steps.append({
+            "title": "Verifica Finale",
+            "content": rf"\text{{Ricostruendo: }} \frac{{{to_latex(sp.numer(reconstructed))}}}{{{to_latex(sp.denom(reconstructed))}}} \\" +
+                       rf"\text{{Differenza: }} {to_latex(diff)} \\ {verification_msg}"
         })
 
         return jsonify({"success": True, "latex": latex_steps})
