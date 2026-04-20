@@ -173,7 +173,8 @@ def api_da_soluzione_a_sistema():
             A[n - 1, i] = coeffs[i]
             
         B = sp.zeros(n, 1)
-        B[n - 1, 0] = 1 # Assuming input u(t) acts on the last state variable
+        if u_term != 0:
+            B[n - 1, 0] = 1 # Assuming input u(t) acts on the last state variable
         
         C = sp.zeros(1, n)
         C[0, 0] = 1

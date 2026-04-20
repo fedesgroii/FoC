@@ -16,11 +16,13 @@
       gap: 10px;
       margin-bottom: 10px;
     }
+
     .delta-input {
       width: 120px;
       padding: 5px;
       text-align: center;
     }
+
     .remove-btn {
       background-color: #dc3545;
       color: white;
@@ -29,6 +31,7 @@
       border-radius: 4px;
       cursor: pointer;
     }
+
     .add-btn {
       background-color: #28a745;
       color: white;
@@ -66,14 +69,15 @@
       <div>
         <h2 style="margin: 0; font-size: 25px;">Da Problema Delta a Sistema</h2>
         <p class="description">
-          Inserisci le specifiche delle funzioni delta e l'equazione finale \( y(t) \), includendo le costanti direttamente come moltiplicatori (es. c1, 5).
+          Inserisci le specifiche delle funzioni delta e l'equazione finale \( y(t) \), includendo le costanti
+          direttamente come moltiplicatori (es. c1, 5).
         </p>
       </div>
     </div>
   </div>
 
   <div class="container" style="max-width: 800px;">
-    
+
     <div style="margin-top: 20px; text-align: center;">
       <h4>Specifiche delle funzioni Delta</h4>
       <div id="delta-container">
@@ -87,7 +91,8 @@
     <div style="margin-top: 20px; text-align: center;">
       <h4>Equazione</h4>
       <span style="font-size: 20px; margin: 0 10px;">\( y(t) = \)</span>
-      <input id="equationInput" type="text" placeholder="es. c1*d(t-1) + 5*d(t)" style="width: 350px; font-size: 18px; text-align: center; padding: 5px;">
+      <input id="equationInput" type="text" placeholder="es. d(t-1)*c1+d(t)*c2"
+        style="width: 350px; font-size: 18px; text-align: center; padding: 5px;">
     </div>
 
     <div style="margin-top: 30px; text-align: center;">
@@ -111,7 +116,7 @@
         const row = document.createElement("div");
         row.className = "delta-row";
         row.id = `delta-row-${deltaCounter}`;
-        
+
         row.innerHTML = `
           <span>Espressione: d(</span>
           <input type="text" class="delta-input time-expr" value="${timeExpr}" placeholder="es. t-1">
@@ -120,7 +125,7 @@
           <input type="number" class="delta-input active-at" value="${activeAt}">
           <button class="remove-btn" onclick="removeDeltaRow(${deltaCounter})" style="margin-left: 10px;">X</button>
         `;
-        
+
         container.appendChild(row);
       }
 
@@ -139,7 +144,7 @@
 
       function calcolaSistema() {
         const output = document.getElementById("output");
-        
+
         // Raccolta Delta
         const deltaSpecs = [];
         const rows = document.querySelectorAll('.delta-row');
@@ -167,8 +172,8 @@
         fetch('/api/delta_da_problema_a_soluzione', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            delta_specs: deltaSpecs, 
+          body: JSON.stringify({
+            delta_specs: deltaSpecs,
             equation: equation
           })
         })
@@ -186,7 +191,7 @@
             } else {
               output.innerHTML = "";
               const data = res.data;
-              
+
               if (data.steps && Array.isArray(data.steps)) {
                 let stepCounter = 1;
                 data.steps.forEach((step) => {
@@ -197,37 +202,37 @@
                   `;
                 });
               }
-              
+
               // Sezione Equazione alle Differenze
               if (data.difference_equation) {
-                 output.innerHTML += `
+                output.innerHTML += `
                     <div style="margin-top: 30px; padding: 15px; border: 2px solid #007bff; border-radius: 8px; background-color: #f8f9fa;">
                         <h4 style="text-align: center; color: #007bff;">Equazione alle Differenze</h4>
                         <div style="text-align: center; font-size: 1.2em;">${data.difference_equation}</div>
                     </div>
                  `;
               }
-              
+
               // Sezione Variabili di Stato
               if (data.state_variables) {
-                 output.innerHTML += `
+                output.innerHTML += `
                     <div style="margin-top: 20px; padding: 15px; border: 1px solid #dee2e6; border-radius: 8px;">
                         <h4 style="text-align: center;">Variabili di Stato (Forma Canonica)</h4>
                         <div style="font-size: 1.1em; display: flex; justify-content: center;">${data.state_variables}</div>
                     </div>
                  `;
               }
-              
+
               // Sezione Matrici
               if (data.matrices) {
-                 output.innerHTML += `
+                output.innerHTML += `
                     <div style="margin-top: 20px; padding: 15px; border: 1px solid #dee2e6; border-radius: 8px;">
                         <h4 style="text-align: center;">Matrici del Sistema nello Spazio di Stato</h4>
                         <div>${data.matrices}</div>
                     </div>
                  `;
               }
-              
+
               MathJax.typesetPromise([output]);
             }
           })
