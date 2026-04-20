@@ -131,7 +131,7 @@ def api_fratti_semplici():
             "title": "Calcolo dei Coefficienti",
             "content": rf"\begin{{cases}} " + 
                        r" \\ ".join([to_latex(eq) for eq in coeffs_system]) + 
-                       r" \end{{cases}} \implies " + r", \ ".join(sol_items)
+                       r" \end{cases} \implies " + r", \ ".join(sol_items)
         })
 
         # STEP 4: Assembly del Risultato
