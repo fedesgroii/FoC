@@ -139,7 +139,7 @@ def api_fratti_semplici():
         
         latex_steps.append({
             "title": "Calcolo Coefficienti",
-            "content": rf"\text{{Uguagliando i coefficienti:}} \\ \begin{cases} " + 
+            "content": rf"\text{{Uguagliando i coefficienti:}} \\ \begin{{cases}} " + 
                        r" \\ ".join([to_latex(eq) for eq in coeffs_system]) + 
                        r" \end{cases} \\ \implies " + r", \ ".join(sol_items)
         })
