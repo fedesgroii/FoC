@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Fratti Semplici</title>
+    <meta name="viewport" content="width=device-width, initial-scale=0.8">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+
+<body>
+    <div id="sidebar-placeholder"></div>
+    <script>
+        fetch('/static/partials/sidebar.html')
+            .then(res => res.text())
+            .then(html => {
+                document.getElementById('sidebar-placeholder').innerHTML = html;
+
+                window.openNav = function () {
+                    const sidebar = document.getElementById("mySidebar");
+                    if (sidebar) sidebar.style.width = "250px";
+                };
+
+                window.closeNav = function () {
+                    const sidebar = document.getElementById("mySidebar");
+                    if (sidebar) sidebar.style.width = "0";
+                };
+            });
+    </script>
+    <div id="main">
+        <div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 0px;">
+            <button class="openbtn" onclick="openNav()" style="padding-top: 0px;">☰</button>
+            <div>
+                <h2 style="margin: 0; font-size: 25px;">Fratti Semplici</h2>
+                <p class="description">
+                    Calcola la decomposizione in fratti semplici di una funzione razionale \( F(s) = \frac{N(s)}{D(s)} \).
+                </p>
+                <p class="description">
+                    L'algoritmo segue un processo meccanico in 7 step, includendo la divisione polinomiale se necessaria, 
+                    la fattorizzazione e il calcolo dei coefficienti.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div style="margin-top: 20px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 15px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 20px;">\( F(s) = \)</span>
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 5px;">
+                    <input id="numInput" type="text" placeholder="Numeratore (es. 3*s + 2)"
+                        style="width: 350px; font-size: 18px; text-align: center; padding: 5px; border: none; border-bottom: 2px solid #ccc; outline: none;">
+                    <div style="width: 100%; height: 2px; background-color: #333;"></div>
+                    <input id="denInput" type="text" placeholder="Denominatore (es. (s-1)*(s+2)*(s-3))"
+                        style="width: 350px; font-size: 18px; text-align: center; padding: 5px; border: none; outline: none;">
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top: 30px; text-align: center;">
+            <button onclick="calcolaFratti()" style="padding: 10px 20px; font-size: 16px;">Risolvi</button>
+        </div>
+
+        <div class="container" style="margin-top: 30px;">
+            <main class="content">
+                <div id="output" class="output" style="margin-top:0px;">
+                    <p style="text-align:center; color:#888; font-style:italic;">Inserisci una funzione razionale...</p>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        function calcolaFratti() {
+            const output = document.getElementById("output");
+            const numerator = document.getElementById("numInput").value.trim();
+            const denominator = document.getElementById("denInput").value.trim();
+
+            if (!numerator || !denominator) {
+                output.innerHTML = `<p style="color:red; text-align:center;">Inserire sia numeratore che denominatore.</p>`;
+                return;
+            }
+
+            output.innerHTML = `<p style="text-align:center; color:#888; font-style:italic;">Calcolo in corso...</p>`;
+
+            fetch('/api/fratti_semplici', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ numerator: numerator, denominator: denominator })
+            })
+                .then(async r => {
+                    if (!r.ok) {
+                        const text = await r.text();
+                        throw new Error(`Errore server: ${text.slice(0, 100)}`);
+                    }
+                    return r.json();
+                })
+                .then(res => {
+                    if (!res.success) {
+                        output.innerHTML = `<p style="color:red; text-align:center;">${res.error || "Errore sconosciuto"}</p>`;
+                    } else {
+                        output.innerHTML = "";
+                        if (res.latex && Array.isArray(res.latex)) {
+                            let stepCounter = 1;
+                            res.latex.forEach((step) => {
+                                output.innerHTML += `
+                                    <div style="margin-bottom: 30px; padding: 15px; background: #f9f9f9; border-radius: 8px; border-left: 5px solid #007bff;">
+                                        <p class="step-title" style="color: #007bff; font-weight: bold; margin-bottom: 10px;">
+                                            STEP ${stepCounter++}: ${step.title}
+                                        </p>
+                                        <p class="centered-math" style="overflow-x: auto; padding: 10px 0;">\\[${step.content}\\]</p>
+                                    </div>
+                                `;
+                            });
+                        }
+                        MathJax.typesetPromise([output]);
+                    }
+                })
+                .catch(err => {
+                    output.innerHTML = `<p style="color:red; text-align:center;">${err.message || "Errore sconosciuto"}</p>`;
+                });
+        }
+
+        // Aggiungi listener per tasto Invio su entrambi i campi
+        [document.getElementById("numInput"), document.getElementById("denInput")].forEach(el => {
+            el.addEventListener("keypress", function (event) {
+                if (event.key === "Enter") {
+                    event.preventDefault();
+                    calcolaFratti();
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>

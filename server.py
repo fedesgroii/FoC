@@ -44,6 +44,10 @@ def equazioni_differenze():
 def da_soluzione_a_sistema():
     return render_template("da_soluzione_a_sistema.html")
 
+@app.route("/fratti_semplici.html")
+def fratti_semplici():
+    return render_template("fratti_semplici.html")
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     # debug=False è obbligatorio quando si usa gunicorn in produzione
