@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 import sympy as sp
-from sympy import Matrix, symbols, simplify, sympify, Eq, solve
+from sympy import Matrix, symbols, simplify, sympify, Eq, solve, nsolve
 from ast import literal_eval
 from sympy.parsing.sympy_parser import parse_expr
 from .utils import transformations, sostituisci_pedici, formatta_x_e
@@ -70,15 +70,49 @@ def linearizzazione():
         for eq in eqs_punto_di_equilibrio:
             print("   ", eq, "  (LaTeX:", sp.latex(eq), ")")
         # Risolvi il sistema rispetto alle variabili di stato x
-        soluzioni_raw = solve(eqs_punto_di_equilibrio, list(x), dict=True)
+        try:
+            soluzioni_raw = solve(eqs_punto_di_equilibrio, list(x), dict=True)
+        except Exception as e:
+            print(f"DEBUG: solve() failed: {e}")
+            soluzioni_raw = []
+
+        # Fallback per equazioni trascendenti (es. x = sin(x)) se solve non trova nulla o fallisce
+        if not soluzioni_raw:
+            print("DEBUG: Provo con nsolve (fallback numerico)")
+            vars_list = list(x)
+            exprs = [eq.lhs - eq.rhs for eq in eqs_punto_di_equilibrio]
+            
+            # Punti di partenza per nsolve
+            for x0_val in [0, 1, -1, 5, -5]:
+                try:
+                    guess = [x0_val] * len(vars_list)
+                    root = nsolve(exprs, vars_list, guess)
+                    # Converti root (Matrix) in dizionario
+                    sol_dict = {vars_list[i]: root[i] for i in range(len(vars_list))}
+                    
+                    # Evita duplicati numerici
+                    is_duplicate = False
+                    for s_exist in soluzioni_raw:
+                        if all(abs(float(sol_dict[v] - s_exist[v])) < 1e-6 for v in vars_list):
+                            is_duplicate = True
+                            break
+                    if not is_duplicate:
+                        soluzioni_raw.append(sol_dict)
+                except Exception:
+                    continue
+
         # Filtra solo soluzioni reali (ignora quelle con parte immaginaria)
         soluzioni = []
         for sol in soluzioni_raw:
             valido = True
             for val in sol.values():
-                val_f = val.evalf()
-                if hasattr(val_f, 'is_real') and val_f.is_real is False:
-                    valido = False
+                try:
+                    val_f = val.evalf()
+                    if hasattr(val_f, 'is_real') and val_f.is_real is False:
+                        valido = False
+                except:
+                    # Se non può essere valutato numericamente, assumiamo sia simbolico valido per ora
+                    pass
             if valido:
                 soluzioni.append(sol)
 
