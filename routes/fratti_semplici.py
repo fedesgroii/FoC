@@ -154,8 +154,10 @@ def api_fratti_semplici():
         # Preparazione stringhe per il sistema e la soluzione
         # Rimuoviamo equazioni banali 0 = 0
         filtered_system = [eq for eq in system if not (eq.lhs == 0 and eq.rhs == 0)]
-        system_latex = rf"\begin{{cases}} " + r" \\ ".join([to_latex(eq) for eq in filtered_system]) + r" \end{{cases}}"
-        
+        if filtered_system:
+            system_latex = r"\begin{cases} " + r" \\ ".join([to_latex(eq) for eq in filtered_system]) + r" \end{cases}"
+        else:
+            system_latex = r"\text{Nessuna equazione generata}"
         if isinstance(sol, list): # Può succedere se ci sono infinite soluzioni o nessuna, ma qui dovrebbe essere un dict
             sol = sol[0] if sol else {}
             
