@@ -130,6 +130,80 @@
   <script>
     document.addEventListener('DOMContentLoaded', function() {
       
+      window.parseInputUtente = function(input) {
+        if (!input || typeof input !== 'string') return { success: false, error: "Input vuoto" };
+        
+        let original = input.trim();
+        if (original === "") return { success: true, parsed: "0", original: original };
+        let parsed = original;
+
+        try {
+          let balance = 0;
+          for (let i = 0; i < parsed.length; i++) {
+            if (parsed[i] === '(') balance++;
+            if (parsed[i] === ')') balance--;
+            if (balance < 0) throw new Error("Parentesi chiusa non aperta.");
+          }
+          if (balance > 0) throw new Error("Parentesi aperta non chiusa.");
+          
+          const validChars = /^[a-zA-Z0-9\s\+\-\*\/\(\)\{\}\[\]\_\'\,.\=\^\Δ\\]+$/;
+          if (!validChars.test(parsed)) {
+            throw new Error("Caratteri non permessi trovati nell'input.");
+          }
+
+          parsed = parsed.replace(/\\Delta/g, 'Δ').replace(/d\/d/g, 'Δ');
+          parsed = parsed.replace(/d/g, 'Δ');
+          
+          parsed = parsed.replace(/Δ\^\(?(\d+)\)?\s*y/g, "y^{($1)}");
+          parsed = parsed.replace(/Δ(\d+)\s*y/g, "y^{($1)}");
+          parsed = parsed.replace(/Δ³\s*y/g, "y'''");
+          parsed = parsed.replace(/Δ²\s*y/g, "y''");
+          parsed = parsed.replace(/Δ\s*y/g, "y'");
+          
+          parsed = parsed.replace(/Δ\s*\(\s*Δ\s*-\s*1\s*\)\s*y/g, "y'' - y'");
+          parsed = parsed.replace(/Δ\s*\(\s*Δ\s*\+\s*1\s*\)\s*y/g, "y'' + y'");
+          parsed = parsed.replace(/Δ/g, "\\Delta ");
+
+          parsed = parsed.replace(/\^\(([^)]+)\)/g, "^{($1)}");
+          parsed = parsed.replace(/\^(-\d+)/g, "^{-$1}");
+          parsed = parsed.replace(/\^(\d+)/g, "^{$1}");
+          parsed = parsed.replace(/\^([a-zA-Z])/g, "^{$1}");
+
+          let fracRegex = /(\w+|\([^)]+\))\s*\/\s*(\w+|\([^)]+\))/g;
+          parsed = parsed.replace(fracRegex, "\\frac{$1}{$2}");
+
+          parsed = parsed.replace(/\bsin\b/g, "\\sin");
+          parsed = parsed.replace(/\bcos\b/g, "\\cos");
+          parsed = parsed.replace(/\btan\b/g, "\\tan");
+          parsed = parsed.replace(/\bexp\b/g, "\\exp");
+
+          parsed = parsed.replace(/\*/g, " ");
+          parsed = parsed.replace(/\s+/g, " ");
+
+          return { success: true, parsed: parsed.trim(), original: original };
+        } catch (err) {
+          return { success: false, error: err.message, original: original };
+        }
+      };
+
+      window.mostraErroreParsing = function(messaggio, inputUtente) {
+        const out = document.getElementById('output');
+        out.innerHTML = `
+          <div class="alert alert-danger mt-3">
+            <strong>Errore di validazione input:</strong> ${messaggio}
+            <br><small>Input ricevuto: <code>${inputUtente}</code></small>
+            <hr>
+            <strong>Suggerimenti:</strong>
+            <ul style="text-align: left; margin-bottom: 0;">
+              <li>Usa <code>^</code> per le potenze: <code>t^2</code>, <code>e^(-t)</code></li>
+              <li>Usa <code>Δ</code> per l'operatore derivata: <code>Δy</code>, <code>Δ²y</code></li>
+              <li>Funzioni supportate: <code>sin(t)</code>, <code>cos(t)</code>, <code>exp(t)</code></li>
+              <li>Assicurati che le parentesi siano bilanciate: <code>(t+1)</code></li>
+            </ul>
+          </div>
+        `;
+      };
+
       window.resetForm = function() {
         document.getElementById("polyInput").setValue("");
         document.getElementById("rhsInput").value = "";
@@ -141,26 +215,36 @@
       };
 
       window.calcolaSoluzione = function() {
-        if (typeof mostraEquazioneInserita === 'function') {
-          mostraEquazioneInserita();
+        const lhsRaw = document.getElementById("polyInput").getValue() || "0";
+        const rhsRaw = document.getElementById("rhsInput").value || "0";
+        
+        const lhsResult = window.parseInputUtente(lhsRaw);
+        const rhsResult = window.parseInputUtente(rhsRaw);
+
+        if (!lhsResult.success) {
+          window.mostraErroreParsing(lhsResult.error, lhsResult.original);
+          return;
         }
-        const lhsPolyRaw = document.getElementById("polyInput").getValue().trim();
-        if (!lhsPolyRaw || lhsPolyRaw === "0") {
-          const out = document.getElementById('output');
-          out.innerHTML = `<p style="color:red; text-align:center;">Inserire un polinomio differenziale \\( P(\\Delta) \\)</p>`;
-          if (window.MathJax) {
-            MathJax.typesetPromise([out]);
-          }
+        if (!rhsResult.success) {
+          window.mostraErroreParsing(rhsResult.error, rhsResult.original);
           return;
         }
 
-        // Sanitizzazione minima per il backend
-        const lhsPoly = lhsPolyRaw.replace(/\\Delta/g, 'Δ');
+        const lhsParsed = lhsResult.parsed;
+        const rhsParsed = rhsResult.parsed;
 
-        let rhsExpr = document.getElementById("rhsInput").value.trim();
-        if (!rhsExpr) rhsExpr = "0";
+        if (lhsParsed === "0") {
+          const out = document.getElementById('output');
+          out.innerHTML = `<p style="color:red; text-align:center;">Inserire un polinomio differenziale \\( P(\\Delta) \\)</p>`;
+          if (window.MathJax) MathJax.typesetPromise([out]);
+          return;
+        }
 
-        const eq = `${lhsPoly} * y = ${rhsExpr}`;
+        if (typeof mostraEquazioneInserita === 'function') {
+          mostraEquazioneInserita(lhsParsed, rhsParsed);
+        }
+
+        const eq = `${lhsParsed} * y = ${rhsParsed}`;
         const order = parseInt(document.getElementById("orderSelect").value);
         const condizioni = [];
         let hasConditions = false;
@@ -214,17 +298,19 @@
         });
       };
 
-      window.mostraEquazioneInserita = function() {
+      window.mostraEquazioneInserita = function(lhsParsed, rhsParsed) {
         try {
           const output = document.getElementById("output");
           output.innerHTML = "";
 
-          const polyInput = document.getElementById("polyInput");
-          const lhsRaw = polyInput ? polyInput.getValue().trim() : "0";
-          const rhsInput = document.getElementById("rhsInput");
-          const rhs = rhsInput ? rhsInput.value.trim() : "0";
-
-          const eqDisplay = `${lhsRaw || "0"} y(t) = ${rhs || "0"}`.replace(/\\Delta/g, "\\Delta ").replace(/d/g, "\\Delta ");
+          // Se lhsParsed non contiene y, y', y'', ecc. ma contiene \Delta, allora è inteso come P(\Delta)y
+          // Se contiene già y o derivate, allora lo mostriamo come è.
+          let eqDisplay = "";
+          if (lhsParsed.includes('y') || lhsParsed.includes('y\'') || lhsParsed.includes('y^')) {
+            eqDisplay = `${lhsParsed} = ${rhsParsed}`;
+          } else {
+            eqDisplay = `${lhsParsed} y(t) = ${rhsParsed}`;
+          }
 
           const orderSelect = document.getElementById("orderSelect");
           const order = orderSelect ? parseInt(orderSelect.value) : 0;

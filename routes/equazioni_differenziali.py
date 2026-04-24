@@ -47,18 +47,42 @@ def solve_differential_equation(equation_str, conditions=None):
         
         lhs_str, rhs_str = equation_str.split('=', 1)
         
-        # Pulizia stringhe
-        lhs_str = lhs_str.replace('Δ', 'd').replace('∘', '*').replace('y(t)', 'y').replace('y', '')
-        # Rimuove moltiplicazioni rimaste appese tipo '(...)*'
+        # Pulizia stringhe LHS
+        lhs_str = lhs_str.replace('\\', '')
+        # Sostituzioni per notazione y', y'', y''' e y^{(n)}
+        lhs_str = re.sub(r"y\^\{\((\d+)\)\}", lambda m: f"(d**{m.group(1)})", lhs_str)
+        lhs_str = lhs_str.replace("y'''", "(d**3)")
+        lhs_str = lhs_str.replace("y''", "(d**2)")
+        lhs_str = lhs_str.replace("y'", "d")
+        lhs_str = lhs_str.replace('Δ', 'd').replace('y(t)', '1').replace('y', '1')
+        
+        # Rimuove moltiplicazioni rimaste appese e pulisce
         lhs_str = lhs_str.strip().rstrip('*').strip()
         if not lhs_str: lhs_str = "d" # Default se vuoto (dy/dt)
         
+        # Pulizia stringhe RHS
+        # Conversione funzioni LaTeX
+        rhs_str = rhs_str.replace(r'\sin', 'sin').replace(r'\cos', 'cos').replace(r'\tan', 'tan').replace(r'\exp', 'exp')
+        # Sostituzioni frazioni
+        rhs_str = re.sub(r'\\frac\{([^{}]+)\}\{([^{}]+)\}', r'((\1)/(\2))', rhs_str)
+        
+        # Gestione potenze: t^{2} -> t**(2)
+        rhs_str = re.sub(r'\^\{([^}]+)\}', r'**(\1)', rhs_str)
         rhs_str = rhs_str.replace('^', '**').replace('e**', 'exp')
         
+        # Aggiunta spazi impliciti per moltiplicazione (gestita meglio dal sympy parser)
+        rhs_str = re.sub(r'e\*\*\((.*?)\)', r'exp(\1)', rhs_str)
+        
         # Parsing dei polinomi
+        from sympy.parsing.sympy_parser import implicit_multiplication_application
+        my_transformations = transformations + (implicit_multiplication_application,)
+        
         local_dict = {'d': d, 't': t, 'exp': exp, 'cos': cos, 'sin': sin, 'I': I, 'e': exp(1)}
-        P_d = parse_expr(lhs_str, local_dict=local_dict, transformations=transformations)
-        u_t = parse_expr(rhs_str, local_dict=local_dict, transformations=transformations)
+        try:
+            P_d = parse_expr(lhs_str, local_dict=local_dict, transformations=my_transformations)
+            u_t = parse_expr(rhs_str, local_dict=local_dict, transformations=my_transformations)
+        except Exception as e:
+            raise ValueError(f"Errore nel parsing dell'equazione: {str(e)}")
         
         P_d = expand(P_d)
         ordine = sp.degree(P_d, d)
