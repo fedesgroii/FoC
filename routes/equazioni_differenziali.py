@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 import sympy as sp
 from sympy import (
     symbols, Function, Eq, dsolve, Derivative, exp, simplify, collect,
-    cos, sin, latex, expand, roots, solve, I, re, im
+    cos, sin, latex, expand, roots, solve, I
 )
 from sympy.parsing.sympy_parser import parse_expr
 from .utils import transformations_basic as transformations
@@ -33,7 +33,7 @@ def solve_differential_equation(equation_str, conditions=None):
         import sympy as sp
         from sympy import (
             symbols, Function, Eq, dsolve, Derivative, exp, simplify, collect,
-            cos, sin, latex, expand, roots, solve, I, re, im
+            cos, sin, latex, expand, roots, solve, I
         )
         from sympy.parsing.sympy_parser import parse_expr
         
@@ -130,8 +130,8 @@ def solve_differential_equation(equation_str, conditions=None):
                     term *= exp(root * t)
                 else:
                     # Gestione radici complesse a + ib
-                    alpha = re(root)
-                    beta = im(root)
+                    alpha = sp.re(root)
+                    beta = sp.im(root)
                     if beta > 0: # Prendi solo la parte positiva per evitare duplicati
                         c2 = symbols(f'c_{c_idx+1}')
                         term = (c * cos(beta * t) + c2 * sin(beta * t)) * (t**i) * exp(alpha * t)
