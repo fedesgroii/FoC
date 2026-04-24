@@ -127,111 +127,149 @@
         </div>
       </main>
     </div>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      
+      window.resetForm = function() {
+        document.getElementById("polyInput").setValue("");
+        document.getElementById("rhsInput").value = "";
+        document.getElementById("orderSelect").value = "3";
+        if (typeof buildInitialConditions === 'function') {
+          buildInitialConditions();
+        }
+        document.getElementById("output").innerHTML = '<p style="text-align:center; color:#888; font-style:italic;">Nessuna equazione inserita...</p>';
+      };
 
-    function resetForm() {
-    document.getElementById("polyInput").setValue("");
-    document.getElementById("rhsInput").value = "";
-    document.getElementById("orderSelect").value = "3";
-    buildInitialConditions();
-    document.getElementById("output").innerHTML = '<p style="text-align:center; color:#888; font-style:italic;">Nessuna
-      equazione inserita...</p>';
-    }
+      window.calcolaSoluzione = function() {
+        if (typeof mostraEquazioneInserita === 'function') {
+          mostraEquazioneInserita();
+        }
+        const lhsPolyRaw = document.getElementById("polyInput").getValue().trim();
+        if (!lhsPolyRaw || lhsPolyRaw === "0") {
+          const out = document.getElementById('output');
+          out.innerHTML = `<p style="color:red; text-align:center;">Inserire un polinomio differenziale \\( P(\\Delta) \\)</p>`;
+          if (window.MathJax) {
+            MathJax.typesetPromise([out]);
+          }
+          return;
+        }
 
-    function calcolaSoluzione() {
-    mostraEquazioneInserita();
-    const lhsPolyRaw = document.getElementById("polyInput").getValue().trim();
-    if (!lhsPolyRaw || lhsPolyRaw === "0") {
-    const out = document.getElementById('output');
-    out.innerHTML = `<p style="color:red; text-align:center;">Inserire un polinomio differenziale \\( P(\\Delta) \\)</p>
-    `;
-    MathJax.typesetPromise([out]);
-    return;
-    }
+        // Sanitizzazione minima per il backend
+        const lhsPoly = lhsPolyRaw.replace(/\\Delta/g, 'Δ');
 
-    // Sanitizzazione minima per il backend
-    const lhsPoly = lhsPolyRaw.replace(/\\Delta/g, 'Δ');
+        let rhsExpr = document.getElementById("rhsInput").value.trim();
+        if (!rhsExpr) rhsExpr = "0";
 
-    let rhsExpr = document.getElementById("rhsInput").value.trim();
-    if (!rhsExpr) rhsExpr = "0";
+        const eq = `${lhsPoly} * y = ${rhsExpr}`;
+        const order = parseInt(document.getElementById("orderSelect").value);
+        const condizioni = [];
+        let hasConditions = false;
+        
+        for (let k = 0; k < order; k++) { 
+          const input = document.getElementById(`y_${k}`).value.trim(); 
+          if (input !== "") {
+            hasConditions = true; 
+          }
+          const val = input === "" ? `y_${k}` : input; 
+          condizioni.push(val); 
+        }
+        
+        fetch('/api/equazioni_differenziali', { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify({ equazione: eq, condizioniIniziali: condizioni, applicaCondizioni: hasConditions }) 
+        }) 
+        .then(async r => {
+          const contentType = r.headers.get("content-type");
+          if (!r.ok || !contentType || !contentType.includes("application/json")) {
+            const text = await r.text();
+            throw new Error(`Risposta non valida dal server: ${text.slice(0, 100)}...`);
+          }
+          return r.json();
+        })
+        .then(res => {
+          const out = document.getElementById('output');
+          if (!res.success) {
+            out.innerHTML += `<p style="color:red; text-align:center; margin-top: 10px;"><b>Errore:</b> ${res.error || res.errore || "Errore sconosciuto"}</p>`;
+          } else {
+            if (res.latex && Array.isArray(res.latex)) {
+              let stepCounter = 1;
+              res.latex.forEach((step) => {
+                out.innerHTML += `
+                <div class="step-container" style="margin-top: 20px; border-left: 4px solid #0d6efd; padding-left: 15px;">
+                  <p class="step-title" style="color: #0d6efd; font-weight: bold;">${stepCounter++}. ${step.title}</p>
+                  <p class="centered-math" style="background: white; padding: 10px; border-radius: 5px; overflow-x: auto;">\\[${step.content}\\]</p>
+                </div>
+                `;
+              });
+            }
+            if (window.MathJax) {
+              MathJax.typesetPromise([out]);
+            }
+          }
+        })
+        .catch(err => {
+          const out = document.getElementById('output');
+          out.innerHTML += `<p style="color:red; text-align:center; margin-top: 10px;"><b>Errore:</b> ${err.message || "Errore sconosciuto"}</p>`;
+        });
+      };
 
-    const eq = `${lhsPoly} * y = ${rhsExpr}`;
-    const order = parseInt(document.getElementById("orderSelect").value);
-    const condizioni = [];
-    let hasConditions = false;
-    for (let k = 0; k < order; k++) { const input=document.getElementById(`y_${k}`).value.trim(); if (input !=="" )
-      hasConditions=true; const val=input==="" ? `y_${k}` : input; condizioni.push(val); }
-      fetch('/api/equazioni_differenziali', { method: 'POST' , headers: { 'Content-Type' : 'application/json' }, body:
-      JSON.stringify({ equazione: eq, condizioniIniziali: condizioni, applicaCondizioni: hasConditions }) }) .then(async
-      r=> {
-      const contentType = r.headers.get("content-type");
-      if (!r.ok || !contentType || !contentType.includes("application/json")) {
-      const text = await r.text();
-      throw new Error(`Risposta non valida dal server: ${text.slice(0, 100)}...`);
-      }
-      return r.json();
-      })
-      .then(res => {
-      const out = document.getElementById('output');
-      if (!res.success) {
-      out.innerHTML += `<p style="color:red; text-align:center; margin-top: 10px;"><b>Errore:</b> ${res.error ||
-        res.errore || "Errore sconosciuto"}</p>`;
-      } else {
-      if (res.latex && Array.isArray(res.latex)) {
-      let stepCounter = 1;
-      res.latex.forEach((step) => {
-      out.innerHTML += `
-      <div class="step-container" style="margin-top: 20px; border-left: 4px solid #0d6efd; padding-left: 15px;">
-        <p class="step-title" style="color: #0d6efd; font-weight: bold;">${stepCounter++}. ${step.title}</p>
-        <p class="centered-math" style="background: white; padding: 10px; border-radius: 5px; overflow-x: auto;">
-          \\[${step.content}\\]</p>
-      </div>
-      `;
-      });
-      }
-      MathJax.typesetPromise([out]);
-      }
-      })
-      .catch(err => {
-      const out = document.getElementById('output');
-      out.innerHTML += `<p style="color:red; text-align:center; margin-top: 10px;"><b>Errore:</b> ${err.message ||
-        "Errore sconosciuto"}</p>`;
-      });
-      }
+      window.mostraEquazioneInserita = function() {
+        try {
+          const output = document.getElementById("output");
+          output.innerHTML = "";
 
-      function mostraEquazioneInserita() {
-      const output = document.getElementById("output");
-      output.innerHTML = "";
+          const polyInput = document.getElementById("polyInput");
+          const lhsRaw = polyInput ? polyInput.getValue().trim() : "0";
+          const rhsInput = document.getElementById("rhsInput");
+          const rhs = rhsInput ? rhsInput.value.trim() : "0";
 
-      const lhsRaw = document.getElementById("polyInput").getValue().trim() || "0";
-      const rhs = document.getElementById("rhsInput").value.trim() || "0";
+          const eqDisplay = `${lhsRaw || "0"} y(t) = ${rhs || "0"}`.replace(/\\Delta/g, "\\Delta ").replace(/d/g, "\\Delta ");
 
-      let latexLhs = lhsRaw
-      .replace(/\\Delta/g, "\\Delta ")
-      .replace(/d/g, "\\Delta ")
-      .replace(/\^/g, "^{") // Gestione basica esponenti
-      .replace(/(\d+)/g, "$1") // qui bisognerebbe chiudere le graffe ma è complesso in regex
-      ;
+          const orderSelect = document.getElementById("orderSelect");
+          const order = orderSelect ? parseInt(orderSelect.value) : 0;
+          const condizioni = [];
+          let condPresent = false;
+          
+          for (let k = 0; k < order; k++) { 
+            const yInput = document.getElementById(`y_${k}`);
+            const inputVal = yInput ? yInput.value.trim() : ""; 
+            if (inputVal !== "") { 
+              condPresent = true; 
+              let label; 
+              if (k === 0) label = "y(0)"; 
+              else if (k === 1) label = "y'(0)"; 
+              else if (k === 2) label = "y''(0)"; 
+              else label = `y^{(${k})}(0)`; 
+              condizioni.push(`${label}=${inputVal}`); 
+            } 
+          } 
+          
+          let html = `
+            <div class="step-container" style="margin-top: 10px; border-left: 4px solid #198754; padding-left: 15px;">
+              <p class="step-title" style="color: #198754; font-weight: bold;">0. Problema da risolvere:</p>
+              <p class="centered-math" style="background: white; padding: 10px; border-radius: 5px;">\\[ ${eqDisplay} \\]</p>
+              ${condPresent ? `<p class="centered-math" style="background: white; padding: 10px; border-radius: 5px;">\\[ ${condizioni.join(",\\quad ")} \\]</p>` : ""}
+            </div>
+          `;
 
-      // Uso un approccio più semplice per il display LaTeX
-      const eqDisplay = `${lhsRaw} y(t) = ${rhs}`.replace(/\\Delta/g, "\\Delta ").replace(/d/g, "\\Delta ");
+          output.innerHTML = html;
+          
+          if (window.MathJax) {
+            MathJax.typesetPromise([output]).catch(err => {
+              console.error('MathJax typeset error:', err);
+            });
+          }
+        } catch (error) {
+          console.error('Errore in mostraEquazioneInserita:', error);
+          const output = document.getElementById("output");
+          if (output) {
+            output.innerHTML += `<div class="error" style="color:red; margin-top: 10px;">Errore: ${error.message}</div>`;
+          }
+        }
+      };
 
-      const order = parseInt(document.getElementById("orderSelect").value);
-      const condizioni = [];
-      let condPresent = false;
-      for (let k = 0; k < order; k++) { const inputVal=document.getElementById(`y_${k}`).value.trim(); if (inputVal
-        !=="" ) { condPresent=true; let label; if (k===0) label="y(0)" ; else if (k===1) label="y'(0)" ; else if (k===2)
-        label="y''(0)" ; else label=`y^{(${k})}(0)`; condizioni.push(`${label}=${inputVal}`); } } let html=` <div
-        class="step-container" style="margin-top: 10px; border-left: 4px solid #198754; padding-left: 15px;">
-        <p class="step-title" style="color: #198754; font-weight: bold;">0. Problema da risolvere:</p>
-        <p class="centered-math" style="background: white; padding: 10px; border-radius: 5px;">\\[ ${eqDisplay} \\]</p>
-        ${condPresent ? `<p class="centered-math" style="background: white; padding: 10px; border-radius: 5px;">\\[
-          ${condizioni.join(",\\quad ")} \\]</p>` : ""}
-  </div>
-  `;
-
-  output.innerHTML = html;
-  MathJax.typesetPromise([output]);
-  }
+    });
   </script>
 
   <script>
