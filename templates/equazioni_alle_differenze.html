@@ -9,288 +9,266 @@
   <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 </head>
 <body>
+  <!-- ► Sidebar ◄ -->
   <div id="sidebar-placeholder"></div>
+  <script>
+    fetch('/static/partials/sidebar.html')
+      .then(res => res.text())
+      .then(html => {
+        document.getElementById('sidebar-placeholder').innerHTML = html;
+        window.openNav = function () {
+          const sidebar = document.getElementById("mySidebar");
+          if (sidebar) sidebar.style.width = "250px";
+        };
+        window.closeNav = function () {
+          const sidebar = document.getElementById("mySidebar");
+          if (sidebar) sidebar.style.width = "0";
+        };
+      });
+  </script>
 
   <div id="main">
     <div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 0px;">
       <button class="openbtn" onclick="openNav()" style="padding-top: 0px;">☰</button>
       <div>
-        <h2 style="margin: 0; font-size: 25px;">Soluzione di Equazioni alle Differenze</h2>
-        <p class="description">
-          Inserisci una equazione alle differenze della forma \( P(\Delta)y(t) = u(t) \).
+        <h2 style="margin: 0; font-size: 25px;">Risoluzione di Equazioni alle Differenze</h2>
+        <p class="description" style="margin-bottom: 4px;">
+          Inserisci un'equazione alle differenze (relazione di ricorrenza) lineare a coefficienti costanti.
+          L'algoritmo calcolerà l'equazione caratteristica e mostrerà la risoluzione analitica passo-passo.
         </p>
-        <p class="description">
-          Utilizza "d" per indicare con più semplicità l'operatore alle differenze \( \Delta \).
+        <p class="description" style="margin-top: 0; font-size: 14px; color: #aaa !important;">
+          Formati supportati: <code>y_{n+2} - 3y_{n+1} + 2y_n = 0</code>, <code>(Δ-1)(Δ+1)y_n = 2^n</code>,
+          <code>y(n+1) = 2*y(n) + n</code>
         </p>
-        <p class="description">
-          Se non specifichi tutte le condizioni iniziali, verranno interpretate come costanti arbitrarie \( y_k \) nella soluzione generale.
-        </p>
-        <div style="margin:0px 0;font-size:16px;">
-          <label for="orderSelect" style="font-weight: 500;">Numero di condizioni iniziali:</label>
-          <select id="orderSelect" onchange="buildInitialConditions()" style="font-size: 16px; margin-left: 6px;">
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3" selected>3</option>
-            <option value="4">4</option>
-          </select>
-        </div>
       </div>
-    </div>
-
-    <div class="container">
-      <!-- ► Zona input ◄ -->
-      <div style="margin:20px 0; font-size:16px; text-align:center;">
-        <input id="polyInput" type="text" placeholder="es. d^2 - 3*d + 2"
-               style="width: 250px; font-size: 18px; text-align: center;">
-        <span style="font-size: 20px; margin: 0 10px;">\( y(t) = \)</span>
-        <input id="rhsInput" type="text" placeholder="es. 2^t"
-               style="width: 200px; font-size: 18px; text-align: center;">
-        <br><br>
-        <div id="initialConditions" style="margin-top: 15px;"></div>
-      </div>
-
-      <!-- ► Bottone ◄ -->
-      <div style="margin-top: 20px; text-align: center;">
-        <button onclick="calcolaSoluzione()">Calcola soluzione generale</button>
-        <button onclick="calcolaCondizioni()" style="margin-left: 10px;">Passa alle condizioni iniziali</button>
-      </div>
-
-      <main class="content">
-        <div id="output" class="output" style="margin-top:0px;">
-          <p style="text-align:center; color:#888; font-style:italic;">Nessuna equazione inserita...</p>
-        </div>
-      </main>
     </div>
   </div>
 
-<script>
-  function mostraEquazioneInserita() {
-    const output = document.getElementById("output");
-    if (!output.innerHTML.trim() || output.innerHTML.includes("Nessuna equazione inserita")) {
-      output.innerHTML = "";
+  <div class="container">
+    <main class="content">
+
+      <!-- ► Zona Input ◄ -->
+      <div class="input-section" style="margin-top: 10px; text-align: center; padding: 20px; border-radius: 10px;">
+
+        <!-- Equazione -->
+        <div style="margin-bottom: 20px;">
+          <label for="eqInput" style="display: block; font-weight: 600; margin-bottom: 8px;">
+            Equazione alle differenze:
+          </label>
+          <input id="eqInput" type="text"
+            placeholder="es. y_{n+2} - 2y_{n+1} + y_n = n"
+            style="width: 480px; max-width: 90%; font-size: 18px; padding: 10px; text-align: center; border-radius: 6px;">
+          <div style="font-size: 12px; color: #aaa; margin-top: 6px;">
+            Usa <code>y_{n+1}</code>, <code>y(n+1)</code> per lo shift. Operatori <code>Δ</code> o <code>E</code> supportati.
+            Funzioni: <code>sin(n)</code>, <code>cos(n)</code>.
+            Potenze: <code>2^n</code>.
+          </div>
+        </div>
+
+        <!-- Condizioni Iniziali -->
+        <div style="margin-top: 20px; border-top: 1px dashed #555; padding-top: 18px;">
+          <label style="display: block; font-weight: 600; margin-bottom: 12px;">
+            Condizioni iniziali (opzionali – Problema di Cauchy):
+          </label>
+          <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; align-items: center;">
+
+            <div style="display: flex; align-items: center; padding: 5px 10px; border-radius: 5px; border: 1px solid #555;">
+              <label for="ic_y0" style="margin-right: 6px; font-weight: 500;">\( y_0 = \)</label>
+              <input id="ic_y0" type="text" placeholder=""
+                style="width: 60px; border: none; outline: none; text-align: center; font-size: 16px;">
+            </div>
+
+            <div style="display: flex; align-items: center; padding: 5px 10px; border-radius: 5px; border: 1px solid #555;">
+              <label for="ic_y1" style="margin-right: 6px; font-weight: 500;">\( y_1 = \)</label>
+              <input id="ic_y1" type="text" placeholder=""
+                style="width: 60px; border: none; outline: none; text-align: center; font-size: 16px;">
+            </div>
+
+            <div style="display: flex; align-items: center; padding: 5px 10px; border-radius: 5px; border: 1px solid #555;">
+              <label for="ic_y2" style="margin-right: 6px; font-weight: 500;">\( y_2 = \)</label>
+              <input id="ic_y2" type="text" placeholder=""
+                style="width: 60px; border: none; outline: none; text-align: center; font-size: 16px;">
+            </div>
+            
+            <div style="display: flex; align-items: center; padding: 5px 10px; border-radius: 5px; border: 1px solid #555;">
+              <label for="ic_y3" style="margin-right: 6px; font-weight: 500;">\( y_3 = \)</label>
+              <input id="ic_y3" type="text" placeholder=""
+                style="width: 60px; border: none; outline: none; text-align: center; font-size: 16px;">
+            </div>
+
+          </div>
+          <div style="font-size: 12px; color: #aaa; margin-top: 8px;">
+            Compila in ordine (y₀, y₁...) per trovare i coefficienti specifici per equazioni di ordine N.
+          </div>
+        </div>
+      </div>
+
+      <!-- ► Bottoni ◄ -->
+      <div style="margin-top: 25px; text-align: center; display: flex; justify-content: center; gap: 15px;">
+        <button class="btn btn-primary btn-lg" onclick="calcolaSoluzione()" style="padding: 10px 25px; font-weight: 600;">
+          Risolvi Equazione
+        </button>
+        <button class="btn btn-outline-secondary btn-lg" onclick="resetForm()" style="padding: 10px 25px;">
+          Resetta
+        </button>
+      </div>
+
+      <!-- ► Output ◄ -->
+      <div id="output" class="output" style="margin-top: 20px;">
+        <p style="text-align:center; color:#888; font-style:italic;">Nessuna equazione inserita...</p>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ► JavaScript ◄ -->
+  <script>
+    function resetForm() {
+      document.getElementById("eqInput").value = "";
+      document.getElementById("ic_y0").value = "";
+      document.getElementById("ic_y1").value = "";
+      document.getElementById("ic_y2").value = "";
+      document.getElementById("ic_y3").value = "";
+      document.getElementById("output").innerHTML =
+        '<p style="text-align:center; color:#888; font-style:italic;">Nessuna equazione inserita...</p>';
     }
 
-    const lhs = document.getElementById("polyInput").value.trim() || "0";
-    const rhs = document.getElementById("rhsInput").value.trim() || "0";
-    const eq = `${lhs} * y = ${rhs}`;
-    let latexEq = eq
-      .replace(/\*/g, '')                         // rimuove il simbolo *
-      .replace(/d/g, "\\Delta")                   // sostituisce d con Delta
-      .replace(/\by\b(?!\s*\()/g, "y(t)")         // sostituisce y con y(t), evitando y(...) come y(0)
-      .replace(/(\d+)\s*\^\s*t/g, "$1^{t}");       // trasforma 2^t in 2^{t}
+    function calcolaSoluzione() {
+      const eqRaw = document.getElementById("eqInput").value.trim();
+      if (!eqRaw) {
+        const out = document.getElementById('output');
+        out.innerHTML = '<p style="color:red; text-align:center;">Inserire un\'equazione alle differenze.</p>';
+        return;
+      }
 
-    const order = parseInt(document.getElementById("orderSelect").value);
-    const condizioni = [];
-    for (let k = 0; k < order; k++) {
-      const inputVal = document.getElementById(`y_${k}`).value.trim();
-      const displayVal = inputVal === "" || inputVal === "0" ? `y_${k}` : inputVal;
-      condizioni.push(`y(${k}) = ${displayVal}`);
-    }
+      const payload = { equazione: eqRaw };
+      if (document.getElementById("ic_y0").value.trim()) payload.y0 = document.getElementById("ic_y0").value.trim();
+      if (document.getElementById("ic_y1").value.trim()) payload.y1 = document.getElementById("ic_y1").value.trim();
+      if (document.getElementById("ic_y2").value.trim()) payload.y2 = document.getElementById("ic_y2").value.trim();
+      if (document.getElementById("ic_y3").value.trim()) payload.y3 = document.getElementById("ic_y3").value.trim();
 
-    const html = `
-      <p class="step-title"><b>0)</b> Equazione inserita:</p>
-      <p class="centered-math">\\[ ${latexEq} \\]</p>
-      <p class="centered-math">\\[ ${condizioni.join(",\\quad ")} \\]</p>
-    `;
-
-    output.innerHTML = html;
-    MathJax.typesetPromise([output]);
-  }
-
-  function buildInitialConditions() {
-    const container = document.getElementById("initialConditions");
-    const order = parseInt(document.getElementById("orderSelect").value);
-    container.innerHTML = "";
-
-    for (let k = 0; k < order; k++) {
-      const label = document.createElement("label");
-      const formula = `y(${k})`;
-      label.innerHTML = `\\( ${formula} = \\)`;
-      label.style.marginRight = "5px";
-
-      const input = document.createElement("input");
-      input.type = "text";
-      input.id = `y_${k}`;
-      input.placeholder = `y_${k}`;
-      input.style.width = "80px";
-      input.style.textAlign = "center";
-      input.style.marginRight = "15px";
-      input.style.fontSize = "16px";
-
-      container.appendChild(label);
-      container.appendChild(input);
-    }
-    MathJax.typesetPromise([container]);
-  }
-
-  fetch('/static/partials/sidebar.html')
-    .then(res => res.text())
-    .then(html => {
-      document.getElementById('sidebar-placeholder').innerHTML = html;
-
-      window.openNav = function () {
-        const sidebar = document.getElementById("mySidebar");
-        if (sidebar) sidebar.style.width = "250px";
-      };
-
-      window.closeNav = function () {
-        const sidebar = document.getElementById("mySidebar");
-        if (sidebar) sidebar.style.width = "0";
-      };
-    });
-
-  // Variabile globale per la soluzione simbolica
-  let symbolicSolution = "";
-
-  // Funzione per calcolare la soluzione particolare, con controllo polinomio
-  function calcolaSoluzione() {
-    const poly = document.getElementById("polyInput").value.trim();
-    if (!poly || poly === "0") {
-      const out = document.getElementById("output");
-      out.innerHTML = `<p style="color:red; text-align:center;">Inserire un polinomio alle differenze \\( P(\\Delta) \\)</p>`;
-      MathJax.typesetPromise([out]);
-      return;
-    }
-
-    mostraEquazioneInserita();
-
-    const rhs = document.getElementById("rhsInput").value.trim() || "0";
-    const order = parseInt(document.getElementById("orderSelect").value);
-    const condizioni = [];
-    for (let k = 0; k < order; k++) {
-      condizioni.push(document.getElementById(`y_${k}`).value.trim());
-    }
-
-    fetch("/api/equazioni_alle_differenze", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ poly, rhs, condizioniIniziali: condizioni })
-    })
-      .then(r => r.json())
-      .then(data => {
-        symbolicSolution = data.soluzione_symbolica || "";
-        console.log("[DEBUG] symbolicSolution set to:", symbolicSolution);
-        const out = document.getElementById("output");
-        if (!data.success) {
-          out.innerHTML += `<p style="color:red; text-align:center;">${data.errore || "Errore nella risposta del server"}</p>`;
-        } else {
-          if (data.latex && Array.isArray(data.latex)) {
-            let stepCounter = 1;
-            data.latex.forEach((step) => {
-              out.innerHTML += `
-                <p class="step-title"><b>${stepCounter++})</b> ${step.title}</p>
-                <p class="centered-math">\\[${step.content}\\]</p>
-              `;
-            });
-          }
-          MathJax.typesetPromise([out]);
-        }
-      })
-      .catch(() => {
-        mostraEquazioneInserita();
-        const out = document.getElementById("output");
-        out.innerHTML += "<p style='color:red; text-align:center;'>Errore di rete.</p>";
-        MathJax.typesetPromise([out]);
-      });
-  }
-
-  // Funzione per passare alle condizioni iniziali (Equazioni alle differenze)
-  function calcolaCondizioni() {
-    const lhsPoly = document.getElementById("polyInput").value.trim();
-    if (!lhsPoly || lhsPoly === "0") {
+      // Mostra l'equazione inserita subito
       const out = document.getElementById('output');
-      out.innerHTML = `<p style="color:red; text-align:center;">Inserire un polinomio alle differenze \\( P(\\Delta) \\)</p>`;
-      MathJax.typesetPromise([out]);
-      return;
-    }
+      out.innerHTML = `
+        <div style="margin-top: 10px; border-left: 4px solid #198754; padding-left: 15px;">
+          <p class="step-title" style="color: #198754; font-weight: bold;">Problema da risolvere:</p>
+          <p class="centered-math" style="background: white; padding: 10px; border-radius: 5px;">
+            \\[${escapeForMathJax(eqRaw)}\\]
+          </p>
+        </div>
+      `;
+      if (window.MathJax) MathJax.typesetPromise([out]);
 
-    mostraEquazioneInserita();
-
-    let rhsExpr = document.getElementById("rhsInput").value.trim();
-    if (!rhsExpr) rhsExpr = "0";
-    const eq = `${lhsPoly} * y = ${rhsExpr}`;
-    const order = parseInt(document.getElementById("orderSelect").value);
-    const condizioni = [];
-    for (let k = 0; k < order; k++) {
-      const input = document.getElementById(`y_${k}`).value.trim();
-      const val = input === "" ? `y_${k}` : input;
-      condizioni.push(val);
-    }
-
-    // Fai prima il fetch alla soluzione generale
-    fetch('/api/equazioni_alle_differenze', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        poly: lhsPoly,
-        rhs: rhsExpr,
-        condizioniIniziali: condizioni
-      })
-    })
-    .then(response => response.json())
-    .then(solData => {
-      const soluzioneGenerale = solData.soluzione_symbolica || "";
-      console.log("[DEBUG] soluzioneGenerale set to:", soluzioneGenerale);
-      if (!soluzioneGenerale) {
-        const out = document.getElementById('output');
-        out.innerHTML += `<p style="color:red; text-align:center;">Soluzione simbolica assente nella risposta del server.</p>`;
-        MathJax.typesetPromise([out]);
-        return;
-      }
-
-      if (!solData.success || !solData.latex || solData.latex.length < 3) {
-        const out = document.getElementById('output');
-        out.innerHTML += `<p style="color:red; text-align:center;">Errore nel calcolo della soluzione generale</p>`;
-        MathJax.typesetPromise([out]);
-        return;
-      }
-
-      // Ora invia tutto all'endpoint delle condizioni
-      fetch('/api/condizioni_alle_differenze', {
+      // Chiamata API
+      fetch('/api/equazioni_alle_differenze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          equazione: eq,
-          condizioniIniziali: condizioni,
-          soluzione_symbolica: soluzioneGenerale
-        })
+        body: JSON.stringify(payload)
       })
       .then(async r => {
-        const contentType = r.headers.get("content-type");
-        if (!r.ok || !contentType || !contentType.includes("application/json")) {
+        const ct = r.headers.get("content-type");
+        if (!r.ok || !ct || !ct.includes("application/json")) {
           const text = await r.text();
-          throw new Error(`Risposta non valida dal server: ${text.slice(0, 100)}...`);
+          throw new Error(`Risposta non valida dal server: ${text.slice(0, 200)}`);
         }
         return r.json();
       })
       .then(res => {
         const out = document.getElementById('output');
         if (!res.success) {
-          out.innerHTML += `<p style="color:red; text-align:center;">${res.errore}</p>`;
-          MathJax.typesetPromise([out]);
-        } else {
-          if (res.latex && Array.isArray(res.latex)) {
-            let stepCounter = 1;
-            res.latex.forEach((step) => {
-              out.innerHTML += `
-                <p class="step-title"><b>${stepCounter++})</b> ${step.title}</p>
-                <p class="centered-math">\\[${step.content}\\]</p>
-              `;
-            });
-          }
-          MathJax.typesetPromise([out]);
+          out.innerHTML += `
+            <div class="alert alert-danger mt-3">
+              <strong>Errore:</strong> ${res.error || "Errore sconosciuto"}
+            </div>`;
+          if (window.MathJax) MathJax.typesetPromise([out]);
+          return;
         }
+
+        if (res.latex && Array.isArray(res.latex)) {
+          let stepNum = 1;
+          res.latex.forEach(step => {
+            // Controlla se è la soluzione finale (boxed) o il passaggio di input
+            let borderColor = "#0d6efd";
+            let titleColor = "#0d6efd";
+
+            if (step.title.toLowerCase().includes("soluzione particolare") ||
+                step.title.toLowerCase().includes("soluzione generale")) {
+              borderColor = "#198754";
+              titleColor = "#198754";
+            }
+            if (step.title.toLowerCase().includes("input")) {
+              borderColor = "#6c757d";
+              titleColor = "#6c757d";
+            }
+
+            out.innerHTML += `
+              <div style="margin-top: 15px; border-left: 4px solid ${borderColor}; padding-left: 15px;">
+                <p class="step-title" style="color: ${titleColor}; font-weight: bold;">
+                  ${stepNum++}. ${step.title}
+                </p>
+                <p class="centered-math" style="background: white; padding: 10px; border-radius: 5px; overflow-x: auto;">
+                  \\[${step.content}\\]
+                </p>
+              </div>`;
+          });
+        }
+
+        if (window.MathJax) MathJax.typesetPromise([out]);
       })
       .catch(err => {
         const out = document.getElementById('output');
-        out.innerHTML += `<p style="color:red; text-align:center;">${err.message || "Errore sconosciuto"}</p>`;
+        out.innerHTML += `
+          <div class="alert alert-danger mt-3">
+            <strong>Errore:</strong> ${err.message || "Errore sconosciuto"}
+          </div>`;
+      });
+    }
+
+    // Utility: sanitize input for MathJax preview (matching backend behavior)
+    function escapeForMathJax(s) {
+      let r = s;
+      r = r.replace(/Δ/g, '\\Delta ');
+      r = r.replace(/∘/g, '\\circ ');
+      r = r.replace(/\*\*/g, '^');
+      r = r.replace(/·/g, '\\cdot ');
+      r = r.replace(/\*/g, '\\cdot ');
+      
+      // Apici e pedici unicode
+      r = r.replace(/⁰/g, '^{0}').replace(/¹/g, '^{1}').replace(/²/g, '^{2}').replace(/³/g, '^{3}');
+      r = r.replace(/⁴/g, '^{4}').replace(/⁵/g, '^{5}').replace(/⁶/g, '^{6}').replace(/⁷/g, '^{7}');
+      r = r.replace(/⁸/g, '^{8}').replace(/⁹/g, '^{9}');
+      
+      r = r.replace(/₀/g, '_{0}').replace(/₁/g, '_{1}').replace(/₂/g, '_{2}').replace(/₃/g, '_{3}');
+      r = r.replace(/₄/g, '_{4}').replace(/₅/g, '_{5}').replace(/₆/g, '_{6}').replace(/⷇/g, '_{7}');
+      r = r.replace(/₈/g, '_{8}').replace(/₉/g, '_{9}');
+      
+      // Frazioni a/b -> \frac{a}{b}
+      r = r.replace(/(?<![a-zA-Z\d])(\d+)\s*\/\s*(\d+)/g, '\\frac{$1}{$2}');
+      
+      // Funzioni
+      r = r.replace(/\bsin\b/g, '\\sin');
+      r = r.replace(/\bcos\b/g, '\\cos');
+      r = r.replace(/\btan\b/g, '\\tan');
+      
+      r = r.replace(/\bexp\s*\(([^)]+)\)/g, 'e^{$1}');
+      r = r.replace(/\be\s*\^\s*\(([^)]+)\)/g, 'e^{$1}');
+      r = r.replace(/\be\s*\^\s*([a-zA-Z0-9_\-]+)/g, 'e^{$1}');
+      
+      // Parentesi adattive attorno alle frazioni
+      r = r.replace(/\(\s*(\\frac{[^}]+}{[^}]+}[^)]*)\)/g, '\\left($1\\right)');
+      
+      return r.trim();
+    }
+
+    // Invio con Enter
+    document.addEventListener('DOMContentLoaded', function() {
+      document.getElementById('eqInput').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          calcolaSoluzione();
+        }
       });
     });
-  }
-</script>
-<script>
-  // Assicura che gli input per le condizioni iniziali siano generati all’avvio della pagina
-  window.addEventListener("DOMContentLoaded", buildInitialConditions);
-</script>
+  </script>
 </body>
 </html>
