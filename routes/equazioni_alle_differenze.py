@@ -71,6 +71,8 @@ def api_equazioni_alle_differenze():
 
         sol = sp.rsolve(equation, y(t))
         print("[DEBUG] Soluzione:", sol)
+        if sol is None:
+            return jsonify({"success": False, "errore": "Impossibile risolvere simbolicamente l'equazione."})
 
         # Aggiunge impulsi traslati se il polinomio è della forma d^n
         impulsi = []
@@ -82,9 +84,9 @@ def api_equazioni_alle_differenze():
                     grado_impulsi += 1
                 elif isinstance(factor, sp.Pow) and factor.base == d:
                     grado_impulsi += int(factor.exp)
-        elif lhs_fattorizzato == d:
+        elif lhs_fattorizzato.equals(d):
             grado_impulsi = 1
-        elif isinstance(lhs_fattorizzato, sp.Pow) and lhs_fattorizzato.base == d:
+        elif isinstance(lhs_fattorizzato, sp.Pow) and lhs_fattorizzato.base.equals(d):
             grado_impulsi = int(lhs_fattorizzato.exp)
 
         if grado_impulsi > 0:
@@ -151,7 +153,7 @@ def api_equazioni_alle_differenze():
                 if term.has(sp.I) and term.has(sp.Pow):
                     c2 = term.coeff((2*sp.I)**t)
                     c3 = term.coeff((-2*sp.I)**t)
-                    if c2 != 0 or c3 != 0:
+                    if (c2.is_Number and c2 != 0) or (c3.is_Number and c3 != 0) or (not c2.is_zero) or (not c3.is_zero):
                         replacement = (
                             -c2 * 2**t * cos(pi*t/2) +
                             c3 * 2**t * sin(pi*t/2)

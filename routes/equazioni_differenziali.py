@@ -107,7 +107,7 @@ def solve_differential_equation(equation_str, conditions=None):
         # Radici
         r_roots = roots(P_r, r)
         # Se roots() non trova tutto (es. polinomi alto grado), usiamo solve
-        if sum(r_roots.values()) != ordine:
+        if sp.simplify(sum(r_roots.values()) - ordine) != 0:
             soluzioni = solve(P_r, r)
             r_roots = {}
             for s in soluzioni:
@@ -132,7 +132,8 @@ def solve_differential_equation(equation_str, conditions=None):
                     # Gestione radici complesse a + ib
                     alpha = sp.re(root)
                     beta = sp.im(root)
-                    if beta > 0: # Prendi solo la parte positiva per evitare duplicati
+                    beta_numeric = sp.N(beta)
+                    if beta_numeric.is_positive: # Prendi solo la parte positiva per evitare duplicati
                         c2 = symbols(f'c_{c_idx+1}')
                         term = (c * cos(beta * t) + c2 * sin(beta * t)) * (t**i) * exp(alpha * t)
                         c_idx += 1
@@ -148,7 +149,7 @@ def solve_differential_equation(equation_str, conditions=None):
         
         # Step 3: Soluzione Particolare
         y_p = 0
-        if u_t == 0:
+        if u_t.is_zero or sp.simplify(u_t) == 0:
             latex_steps.append({
                 "title": "Soluzione particolare \( y_p(t) \):",
                 "content": r"y_p(t) = 0 \quad \text{(Equazione omogenea)}"
