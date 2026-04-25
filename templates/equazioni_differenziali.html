@@ -220,29 +220,40 @@
       });
     }
 
-    // Utility: escape basic chars for MathJax display
+    // Utility: sanitize input for MathJax preview (matching backend behavior)
     function escapeForMathJax(s) {
-      // Converte la notazione utente in LaTeX-like per la preview
       let r = s;
+      r = r.replace(/Δ/g, '\\Delta ');
+      r = r.replace(/∘/g, '\\circ ');
       r = r.replace(/\*\*/g, '^');
-      r = r.replace(/\*/g, ' \\cdot ');
-      r = r.replace(/exp\(/g, 'e^{');
-      r = r.replace(/sin\(/g, '\\sin(');
-      r = r.replace(/cos\(/g, '\\cos(');
-      r = r.replace(/tan\(/g, '\\tan(');
-      r = r.replace(/ln\(/g, '\\ln(');
-      r = r.replace(/sqrt\(/g, '\\sqrt{');
-      // Close braces for exp/sqrt
-      if (r.includes('e^{') || r.includes('\\sqrt{')) {
-        // Simple heuristic: count unbalanced braces
-        let open = (r.match(/{/g) || []).length;
-        let close = (r.match(/}/g) || []).length;
-        while (close < open) { r += '}'; close++; }
-      }
-      r = r.replace(/y'''/g, "y'''");
-      r = r.replace(/y''/g, "y''");
-      r = r.replace(/y'/g, "y'");
-      return r;
+      r = r.replace(/·/g, '\\cdot ');
+      r = r.replace(/\*/g, '\\cdot ');
+      
+      // Apici e pedici unicode
+      r = r.replace(/⁰/g, '^{0}').replace(/¹/g, '^{1}').replace(/²/g, '^{2}').replace(/³/g, '^{3}');
+      r = r.replace(/⁴/g, '^{4}').replace(/⁵/g, '^{5}').replace(/⁶/g, '^{6}').replace(/⁷/g, '^{7}');
+      r = r.replace(/⁸/g, '^{8}').replace(/⁹/g, '^{9}');
+      
+      r = r.replace(/₀/g, '_{0}').replace(/₁/g, '_{1}').replace(/₂/g, '_{2}').replace(/₃/g, '_{3}');
+      r = r.replace(/₄/g, '_{4}').replace(/₅/g, '_{5}').replace(/₆/g, '_{6}').replace(/⷇/g, '_{7}');
+      r = r.replace(/₈/g, '_{8}').replace(/₉/g, '_{9}');
+      
+      // Frazioni a/b -> \frac{a}{b}
+      r = r.replace(/(?<![a-zA-Z\d])(\d+)\s*\/\s*(\d+)/g, '\\frac{$1}{$2}');
+      
+      // Funzioni
+      r = r.replace(/\bsin\b/g, '\\sin');
+      r = r.replace(/\bcos\b/g, '\\cos');
+      r = r.replace(/\btan\b/g, '\\tan');
+      
+      r = r.replace(/\bexp\s*\(([^)]+)\)/g, 'e^{$1}');
+      r = r.replace(/\be\s*\^\s*\(([^)]+)\)/g, 'e^{$1}');
+      r = r.replace(/\be\s*\^\s*([a-zA-Z0-9_\-]+)/g, 'e^{$1}');
+      
+      // Parentesi adattive attorno alle frazioni
+      r = r.replace(/\(\s*(\\frac{[^}]+}{[^}]+}[^)]*)\)/g, '\\left($1\\right)');
+      
+      return r.trim();
     }
 
     // Invio con Enter
