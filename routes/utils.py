@@ -32,11 +32,29 @@ transformations_basic = standard_transformations + (
 # Usata da: linearizzazione.py
 # ---------------------------------------------------------------------------
 def sostituisci_pedici(equation_str: str) -> str:
-    """Converte 'x_1', 'x_{2}', ecc. in 'x1', 'x2', ..."""
+    """
+    Converte vari formati di pedici e apici in formato compatibile SymPy.
+    Esempi: x_1, x_{2}, x_ 1, x₁, x², x³
+    """
+    # Mappa pedici Unicode a cifre normali
+    unicode_subscripts = str.maketrans("₀₁₂₃₄₅₆₇₈₉", "0123456789")
+    # Mappa apici Unicode a (cifra) per essere poi convertiti in **cifra
+    unicode_superscripts = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹", "0123456789")
+    
+    s = equation_str.translate(unicode_subscripts)
+    
+    # Gestione apici Unicode: trasformiamo x³ in x**3
+    for char in "⁰¹²³⁴⁵⁶⁷⁸⁹":
+        if char in s:
+            digit = char.translate(unicode_superscripts)
+            s = s.replace(char, f"**{digit}")
+
     def replacer(match):
         index = match.group(1) or match.group(2)
         return f"x{index}"
-    return re.sub(r"x_(?:\{(\d+)\}|\s*(\d+))", replacer, equation_str)
+    
+    # Regex migliorata per gestire x_1, x_{1}, x_ 1
+    return re.sub(r"x\_(?:\{(\d+)\}|\s*(\d+))", replacer, s)
 
 
 # ---------------------------------------------------------------------------

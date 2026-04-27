@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 import sympy as sp
+import re
 from sympy import Matrix, symbols, simplify, sympify, Eq, solve, nsolve
 from ast import literal_eval
 from sympy.parsing.sympy_parser import parse_expr
@@ -31,6 +32,14 @@ def linearizzazione():
         eqs_sostituite = []
         for eq in equazioni:
             try:
+                # Estrai il RHS se è presente un '='
+                if '=' in eq:
+                    eq = eq.split('=')[-1].strip()
+                
+                # Rimuove (t+1), (t), ecc.
+                eq = re.sub(r'\(t\+1\)', '', eq)
+                eq = re.sub(r'\(t\)', '', eq)
+                
                 eq_modificata = sostituisci_pedici(eq)
                 local_dict = {f'x{i+1}': x[i] for i in range(numero_equazioni)}
                 if numero_equazioni == 1:
@@ -251,6 +260,12 @@ def linearizzazione():
             try:
                 f_exprs = []
                 for eq in equazioni:
+                    # Stessa pulizia fatta sopra
+                    if '=' in eq:
+                        eq = eq.split('=')[-1].strip()
+                    eq = re.sub(r'\(t\+1\)', '', eq)
+                    eq = re.sub(r'\(t\)', '', eq)
+
                     eq_modificata = sostituisci_pedici(eq)
                     local_dict = {f'x{i+1}': x[i] for i in range(numero_equazioni)}
                     if numero_equazioni == 1:
@@ -262,7 +277,13 @@ def linearizzazione():
                 A = Matrix([[diff(expr, x_var) for x_var in x] for expr in f_exprs]).subs(punto_eq_subs).applyfunc(sp.simplify)
                 B = Matrix([[diff(expr, u)] for expr in f_exprs]).subs(punto_eq_subs).applyfunc(sp.simplify)
 
-                h_uscita_mod = sostituisci_pedici(equazione_uscita)
+                # Pulizia equazione uscita
+                h_uscita = equazione_uscita
+                if '=' in h_uscita:
+                    h_uscita = h_uscita.split('=')[-1].strip()
+                h_uscita = re.sub(r'\(t\)', '', h_uscita)
+
+                h_uscita_mod = sostituisci_pedici(h_uscita)
                 local_dict = {f'x{i+1}': x[i] for i in range(numero_equazioni)}
                 if numero_equazioni == 1:
                     local_dict['x'] = x[0]
