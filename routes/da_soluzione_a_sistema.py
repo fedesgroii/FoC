@@ -94,7 +94,7 @@ def api_da_soluzione_a_sistema():
         latex_steps = []
 
         # 0. Sistema inserito
-        time_domain_str = "Tempo Continuo (\\(\\mathbb{R}\\))" if time_type == 'continuous' else "Tempo Discreto (\\(\\mathbb{Z}\\))"
+        time_domain_str = "Tempo Continuo (R)" if time_type == 'continuous' else "Tempo Discreto (Z)"
         latex_steps.append({
             "title": f"Soluzione Inserita - {time_domain_str}",
             "content": f"y({time_var_name}) = {to_latex(y_expr)}"
@@ -102,7 +102,7 @@ def api_da_soluzione_a_sistema():
 
         # 1. Ordine n
         latex_steps.append({
-            "title": "Ordine del sistema \\(n\\)",
+            "title": "Ordine del sistema n",
             "content": f"n = {n} \\quad \\text{{(Costanti: }} {', '.join(constants_str)} \\text{{)}}"
         })
 
@@ -123,7 +123,7 @@ def api_da_soluzione_a_sistema():
             
         latex_steps.append({
             "title": "Equazioni" if time_type == 'continuous' else "Incrementi",
-            "content": r"\( \begin{aligned} " + " \\\\ ".join(eqs_latex) + r" \end{aligned} \)"
+            "content": r"\begin{aligned} " + " \\\\ ".join(eqs_latex) + r" \end{aligned}"
         })
 
         # 3. Sistema in forma matriciale
@@ -149,10 +149,10 @@ def api_da_soluzione_a_sistema():
         # FIX IMPAGINAZIONE SEZIONE 3
         # Separo la definizione della forma compatta dalla visualizzazione delle matrici
         step3_content = (
-            r"\( \vec{b} = A \cdot \vec{c} \)" + "\n\n"
-            # Uso pmatrix per matrici più compatte o split se troppo grandi
-            r"\( " + to_latex(b) + r" = " + to_latex(A) + r" \cdot " + to_latex(c_syms_vec) + r" \)"
-        )
+            r"\vec{b} = A \cdot \vec{c} \\ "
+            r"{to_latex(b)} = {to_latex(A)} \cdot {to_latex(c_syms_vec)}"
+        ).replace("{to_latex(b)}", to_latex(b)).replace("{to_latex(A)}", to_latex(A)).replace("{to_latex(c_syms_vec)}", to_latex(c_syms_vec))
+        
         latex_steps.append({
             "title": "Sistema in forma matriciale",
             "content": fix_latex_y_symbols(step3_content, time_type, n)
@@ -169,8 +169,8 @@ def api_da_soluzione_a_sistema():
         latex_steps.append({
             "title": "Calcolo del determinante",
             "content": (
-                r"\( \det(A) = " + to_latex(det_A) + r" \)" + "\n\n"
-                r"\( \textcolor{" + color + r"}{" + det_msg + r"} \)"
+                r"\det(A) = " + to_latex(det_A) + r" \\ " +
+                r"\textcolor{" + color + r"}{" + det_msg + r"}"
             )
         })
         
@@ -187,9 +187,9 @@ def api_da_soluzione_a_sistema():
         latex_steps.append({
             "title": "Matrice inversa",
             "content": (
-                r"\( \text{Matrice dei cofattori: } \mathrm{Cof}(A) = " + to_latex(cofactor_matrix) + r" \)" + "\n\n"
-                r"\( \text{Matrice aggiunta: } \mathrm{Adj}(A) = \mathrm{Cof}(A)^T = " + to_latex(adj_A) + r" \)" + "\n\n"
-                r"\( A^{-1} = \frac{1}{\det(A)} \cdot \mathrm{Adj}(A) = " + to_latex(A_inv) + r" \)"
+                r"\text{Matrice dei cofattori: } \mathrm{Cof}(A) = " + to_latex(cofactor_matrix) + r" \\ " +
+                r"\text{Matrice aggiunta: } \mathrm{Adj}(A) = \mathrm{Cof}(A)^T = " + to_latex(adj_A) + r" \\ " +
+                r"A^{-1} = \frac{1}{\det(A)} \cdot \mathrm{Adj}(A) = " + to_latex(A_inv)
             )
         })
 
@@ -206,8 +206,8 @@ def api_da_soluzione_a_sistema():
         
         # Mostro la moltiplicazione
         multiplication_str = (
-            r"\( \vec{c} = A^{-1} \cdot \vec{b} \)" + "\n\n"
-            r"\( " + to_latex(c_syms_vec) + r" = " + to_latex(A_inv) + r" \cdot " + to_latex(b) + r" \)"
+            r"\vec{c} = A^{-1} \cdot \vec{b} \\ " +
+            to_latex(c_syms_vec) + r" = " + to_latex(A_inv) + r" \cdot " + to_latex(b)
         )
         
         latex_steps.append({
@@ -218,7 +218,7 @@ def api_da_soluzione_a_sistema():
         latex_steps.append({
             "title": "Risultato Vettore Costanti",
             "content": (
-                r"\( " + to_latex(c_syms_vec) + r" = " + to_latex(c_vector) + r" \)"
+                to_latex(c_syms_vec) + r" = " + to_latex(c_vector)
             )
         })
         
@@ -235,7 +235,7 @@ def api_da_soluzione_a_sistema():
         
         latex_steps.append({
             "title": "Costanti isolate",
-            "content": r"\( \begin{aligned} " + " \\\\ ".join(sol_latex) + r" \end{aligned} \)"
+            "content": r"\begin{aligned} " + " \\\\ ".join(sol_latex) + r" \end{aligned}"
         })
 
         # 8. Equazione finale
@@ -269,7 +269,7 @@ def api_da_soluzione_a_sistema():
         
         latex_steps.append({
             "title": "Variabili di stato introdotte",
-            "content": r"\( \begin{aligned} " + " \\\\ ".join(state_vars) + r" \end{aligned} \)"
+            "content": r"\begin{aligned} " + " \\\\ ".join(state_vars) + r" \end{aligned}"
         })
 
         # 10. Matrici Finali
@@ -294,20 +294,20 @@ def api_da_soluzione_a_sistema():
         html_content = f"""
         <div style="display: flex; flex-direction: column; gap: 20px; align-items: center; margin-top: 15px;">
             <div style="display: flex; gap: 50px; justify-content: center; align-items: center; flex-wrap: wrap;">
-                <div>\\( A = {to_latex(A_comp)} \\)</div>
-                <div>\\( B = {to_latex(B_comp)} \\)</div>
+                <div>$ A = {to_latex(A_comp)} $</div>
+                <div>$ B = {to_latex(B_comp)} $</div>
             </div>
             <div style="display: flex; gap: 50px; justify-content: center; align-items: center; flex-wrap: wrap;">
-                <div>\\( C = {to_latex(C_comp)} \\)</div>
-                <div>\\( D = {to_latex(D_comp)} \\)</div>
+                <div>$ C = {to_latex(C_comp)} $</div>
+                <div>$ D = {to_latex(D_comp)} $</div>
             </div>
         </div>
         """
         
         if u_term != 0:
-            html_content += f"<br><br><div style='text-align:center; font-size: 18px;'>Con ingresso \\( u({time_var_name}) = {to_latex(u_term)} \\)</div>"
+            html_content += f"<br><br><div style='text-align:center; font-size: 18px;'>Con ingresso $ u({time_var_name}) = {to_latex(u_term)} $</div>"
         else:
-            html_content += f"<br><br><div style='text-align:center; font-size: 18px;'>Sistema autonomo (ingresso \\( u({time_var_name}) = 0 \\))</div>"
+            html_content += f"<br><br><div style='text-align:center; font-size: 18px;'>Sistema autonomo (ingresso $ u({time_var_name}) = 0 $)</div>"
 
         latex_steps.append({
             "title": "Matrici del sistema in forma compagna",
