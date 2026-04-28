@@ -187,9 +187,9 @@ def api_da_soluzione_a_sistema():
         latex_steps.append({
             "title": "Matrice inversa",
             "content": (
-                r" \text{Matrice dei cofattori: } \mathrm{Cof}(A) = " + to_latex(cofactor_matrix) + r" \\ " + "\n\n"
-                r" \text{Matrice aggiunta: } \mathrm{Adj}(A) = \mathrm{Cof}(A)^T = " + to_latex(adj_A) + r" \\ " + "\n\n"
-                r" A^{-1} = \frac{1}{\det(A)} \cdot \mathrm{Adj}(A) = " + to_latex(A_inv) + r" "
+                r"\text{Matrice dei cofattori: } \mathrm{Cof}(A) = " + to_latex(cofactor_matrix) + r" \\ " +
+                r"\text{Matrice aggiunta: } \mathrm{Adj}(A) = \mathrm{Cof}(A)^T = " + to_latex(adj_A) + r" \\ " +
+                r"A^{-1} = \frac{1}{\det(A)} \cdot \mathrm{Adj}(A) = " + to_latex(A_inv)
             )
         })
 
