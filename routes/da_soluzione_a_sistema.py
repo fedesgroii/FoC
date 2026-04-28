@@ -184,14 +184,14 @@ def api_da_soluzione_a_sistema():
 
         # FIX IMPAGINAZIONE SEZIONE 5
         # Uso \\\\ per andare a capo tra le matrici
-       latex_steps.append({
-    "title": "Matrice inversa",
-    "content": (
-        r"\begin{align*}" +
-        r"\text{Matrice dei cofattori: } \mathrm{Cof}(A) &= " + to_latex(cofactor_matrix) + r"\\" +
-        r"\text{Matrice aggiunta: } \mathrm{Adj}(A) &= \mathrm{Cof}(A)^T = " + to_latex(adj_A) + r"\\" +
-        r"A^{-1} &= \frac{1}{\det(A)} \cdot \mathrm{Adj}(A) = " + to_latex(A_inv) +
-        r"\end{align*}"
+        latex_steps.append({
+            "title": "Matrice inversa",
+            "content": (
+            r"\begin{align*}" +
+            r"\text{Matrice dei cofattori: } \mathrm{Cof}(A) &= " + to_latex(cofactor_matrix) + r"\\" +
+            r"\text{Matrice aggiunta: } \mathrm{Adj}(A) &= \mathrm{Cof}(A)^T = " + to_latex(adj_A) + r"\\" +
+            r"A^{-1} &= \frac{1}{\det(A)} \cdot \mathrm{Adj}(A) = " + to_latex(A_inv) +
+            r"\end{align*}"
     )
 })
 
