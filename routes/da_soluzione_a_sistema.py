@@ -152,7 +152,7 @@ def api_da_soluzione_a_sistema():
         
         # MODIFICA 3: Fix impaginazione LaTeX con \[ \] e a capo
         step3_content = (
-            r"\[ \vec{b} = A \cdot \vec{c} \] \\\\"
+            r"\[ \vec{b} = A \cdot \vec{c} \] \\"
             r"\[ " + to_latex(b) + r" = " + to_latex(A) + r" \cdot " + to_latex(c_syms_vec) + r" \]"
         )
         latex_steps.append({
@@ -260,30 +260,30 @@ def api_da_soluzione_a_sistema():
         coeffs = [sp.simplify(y_n_expr.diff(y_syms[i])) for i in range(n)]
         u_term = sp.simplify(y_n_expr - sum(coeffs[i]*y_syms[i] for i in range(n)))
         
-        A = sp.zeros(n, n)
+        A_state = sp.zeros(n, n)
         for i in range(n - 1):
-            A[i, i + 1] = 1
+            A_state[i, i + 1] = 1
         for i in range(n):
-            A[n - 1, i] = coeffs[i]
+            A_state[n - 1, i] = coeffs[i]
             
-        B = sp.zeros(n, 1)
+        B_state = sp.zeros(n, 1)
         if u_term != 0:
-            B[n - 1, 0] = 1 # Assuming input u(t) acts on the last state variable
+            B_state[n - 1, 0] = 1 # Assuming input u(t) acts on the last state variable
         
-        C = sp.zeros(1, n)
-        C[0, 0] = 1
+        C_state = sp.zeros(1, n)
+        C_state[0, 0] = 1
         
-        D = sp.zeros(1, 1) # D is 0
+        D_state = sp.zeros(1, 1) # D is 0
 
         html_content = f"""
         <div style="display: flex; flex-direction: column; gap: 20px; align-items: center; margin-top: 15px;">
             <div style="display: flex; gap: 50px; justify-content: center; align-items: center;">
-                <div>\\[ A = {to_latex(A)} \\]</div>
-                <div>\\[ B = {to_latex(B)} \\]</div>
+                <div>\\[ A = {to_latex(A_state)} \\]</div>
+                <div>\\[ B = {to_latex(B_state)} \\]</div>
             </div>
             <div style="display: flex; gap: 50px; justify-content: center; align-items: center;">
-                <div>\\[ C = {to_latex(C)} \\]</div>
-                <div>\\[ D = {to_latex(D)} \\]</div>
+                <div>\\[ C = {to_latex(C_state)} \\]</div>
+                <div>\\[ D = {to_latex(D_state)} \\]</div>
             </div>
         </div>
         """
