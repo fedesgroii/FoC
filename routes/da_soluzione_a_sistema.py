@@ -183,15 +183,22 @@ def api_da_soluzione_a_sistema():
         A_inv = sp.simplify(adj_A / det_A)
 
         # FIX IMPAGINAZIONE SEZIONE 5
-        # Metto ogni matrice su una riga separata per evitare overflow
+        # Uso \\\\ per andare a capo tra le matrici
         latex_steps.append({
             "title": "Matrice inversa",
             "content": (
-                r"\text{Matrice dei cofattori: } \mathrm{Cof}(A) = " + to_latex(cofactor_matrix) + r" \\ " +
-                r"\text{Matrice aggiunta: } \mathrm{Adj}(A) = \mathrm{Cof}(A)^T = " + to_latex(adj_A) + r" \\ " +
-                r"A^{-1} = \frac{1}{\det(A)} \cdot \mathrm{Adj}(A) = " + to_latex(A_inv)
+                r"\text{Matrice dei cofattori: } \mathrm{Cof}(A) = " + "\n" +
+                to_latex(cofactor_matrix) + "\n" +
+                r"\\ \\ " +
+                r"\text{Matrice aggiunta: } \mathrm{Adj}(A) = \mathrm{Cof}(A)^T = " + "\n" +
+                to_latex(adj_A) + "\n" +
+                r"\\ \\ " +
+                r"A^{-1} = \frac{1}{\det(A)} \cdot \mathrm{Adj}(A) = " + "\n" +
+                to_latex(A_inv)
             )
         })
+
+
 
         # 6. Calcolo delle costanti
         c_vector = sp.simplify(A_inv * b)
@@ -272,7 +279,7 @@ def api_da_soluzione_a_sistema():
             "content": r"\begin{aligned} " + " \\\\ ".join(state_vars) + r" \end{aligned}"
         })
 
-       # 10. Matrici Finali
+        # 10. Matrici Finali
         coeffs = [sp.simplify(y_n_expr.diff(y_syms[i])) for i in range(n)]
         u_term = sp.simplify(y_n_expr - sum(coeffs[i]*y_syms[i] for i in range(n)))
         
