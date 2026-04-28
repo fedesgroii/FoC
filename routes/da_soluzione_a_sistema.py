@@ -13,10 +13,6 @@ def normalize_exponential(expr_str):
     """
     Converte e^(...) in exp(...)
     Mantiene compatibilità con exp(...) già presente
-    Esempi:
-    - e^(2*t) → exp(2*t)
-    - e^(t+1) → exp(t+1)
-    - exp(t) → exp(t) (invariato)
     """
     if not isinstance(expr_str, str):
         return expr_str
@@ -31,27 +27,28 @@ def normalize_exponential(expr_str):
 def fix_latex_y_symbols(latex_str, time_type, n, is_derivative=True):
     # Replaces y_0, y_1... with proper derivatives or time shifts
     res = latex_str
+    time_var = 't'
     for i in reversed(range(n + 1)):
         if time_type == 'continuous':
             if i == 0:
-                res = res.replace(f"y_{{{i}}}", "y(t)")
-                res = res.replace(f"y_{i}", "y(t)")
+                res = res.replace(f"y_{{{i}}}", f"y({time_var})")
+                res = res.replace(f"y_{i}", f"y({time_var})")
             elif i == 1:
-                res = res.replace(f"y_{{{i}}}", "\\dot{y}(t)")
-                res = res.replace(f"y_{i}", "\\dot{y}(t)")
+                res = res.replace(f"y_{{{i}}}", f"\\dot{{y}}({time_var})")
+                res = res.replace(f"y_{i}", f"\\dot{{y}}({time_var})")
             elif i == 2:
-                res = res.replace(f"y_{{{i}}}", "\\ddot{y}(t)")
-                res = res.replace(f"y_{i}", "\\ddot{y}(t)")
+                res = res.replace(f"y_{{{i}}}", f"\\ddot{{y}}({time_var})")
+                res = res.replace(f"y_{i}", f"\\ddot{{y}}({time_var})")
             else:
-                res = res.replace(f"y_{{{i}}}", f"y^{{({i})}}(t)")
-                res = res.replace(f"y_{i}", f"y^{{({i})}}(t)")
+                res = res.replace(f"y_{{{i}}}", f"y^{{({i})}}({time_var})")
+                res = res.replace(f"y_{i}", f"y^{{({i})}}({time_var})")
         else:
             if i == 0:
-                res = res.replace(f"y_{{{i}}}", "y(t)")
-                res = res.replace(f"y_{i}", "y(t)")
+                res = res.replace(f"y_{{{i}}}", f"y({time_var})")
+                res = res.replace(f"y_{i}", f"y({time_var})")
             else:
-                res = res.replace(f"y_{{{i}}}", f"y(t+{i})")
-                res = res.replace(f"y_{i}", f"y(t+{i})")
+                res = res.replace(f"y_{{{i}}}", f"y({time_var}+{i})")
+                res = res.replace(f"y_{i}", f"y({time_var}+{i})")
     return res
 
 @da_soluzione_a_sistema_bp.route('/api/da_soluzione_a_sistema', methods=['POST'])
@@ -80,21 +77,19 @@ def api_da_soluzione_a_sistema():
         y_input_clean = re.sub(r'C(\d+)', r'c\1', y_input_clean)
 
         # Parse expression
+        time_var_name = 't'
         if time_type == 'continuous':
-            t = sp.symbols('t', real=True)
+            t_sym = sp.symbols('t', real=True)
         else:
-            t = sp.symbols('t', integer=True)
+            t_sym = sp.symbols('t', integer=True)
             
-        local_dict = {'t': t, 'e': sp.exp(1)}
+        local_dict = {time_var_name: t_sym, 'e': sp.exp(1)}
         for c in constants_str:
             local_dict[c] = sp.symbols(c)
 
-        # MODIFICA 1: Normalizza esponenziali (e^(...) → exp(...))
-        y_input_normalized = normalize_exponential(y_input_clean)
-        
-        # MODIFICA 2: Espande automaticamente le espressioni fattorizzate
-        y_expr = parse_expr(y_input_normalized, local_dict=local_dict, transformations=transformations)
-        y_expr = sp.expand(y_expr)  # Espande exp(t)*(c1 + c2*t) → c1*exp(t) + c2*t*exp(t)
+        # Parsing dell'espressione
+        y_expr = parse_expr(y_input_clean, local_dict=local_dict, transformations=transformations)
+        y_expr = sp.expand(y_expr)
         
         latex_steps = []
 
@@ -102,7 +97,7 @@ def api_da_soluzione_a_sistema():
         time_domain_str = "Tempo Continuo (\\(\\mathbb{R}\\))" if time_type == 'continuous' else "Tempo Discreto (\\(\\mathbb{Z}\\))"
         latex_steps.append({
             "title": f"Soluzione Inserita - {time_domain_str}",
-            "content": f"y(t) = {to_latex(y_expr)}"
+            "content": f"y({time_var_name}) = {to_latex(y_expr)}"
         })
 
         # 1. Ordine n
@@ -115,9 +110,9 @@ def api_da_soluzione_a_sistema():
         equations = [y_expr]
         for i in range(1, n + 1):
             if time_type == 'continuous':
-                equations.append(sp.diff(equations[-1], t))
+                equations.append(sp.diff(equations[-1], t_sym))
             else:
-                equations.append(y_expr.subs(t, t + i))
+                equations.append(y_expr.subs(t_sym, t_sym + i))
         
         y_syms = [sp.symbols(f"y_{i}") for i in range(n + 1)]
         
@@ -140,7 +135,8 @@ def api_da_soluzione_a_sistema():
         for i in range(n):
             eq = equations[i]
             for j, c_sym in enumerate(C_syms):
-                A[i, j] = sp.simplify(eq.coeff(c_sym))
+                # Uso diff invece di coeff per maggiore robustezza
+                A[i, j] = sp.simplify(eq.diff(c_sym))
             
             known_terms = eq
             for c_sym in C_syms:
@@ -150,10 +146,11 @@ def api_da_soluzione_a_sistema():
 
         c_syms_vec = sp.Matrix([c_sym for c_sym in C_syms])
         
-        # CORREZIONE 3: Fix impaginazione LaTeX con \[ \] e a capo
-        # Uso raw strings per evitare problemi di escape
+        # FIX IMPAGINAZIONE SEZIONE 3
+        # Separo la definizione della forma compatta dalla visualizzazione delle matrici
         step3_content = (
             r"\[ \vec{b} = A \cdot \vec{c} \]" + "\n\n"
+            # Uso pmatrix per matrici più compatte o split se troppo grandi
             r"\[ " + to_latex(b) + r" = " + to_latex(A) + r" \cdot " + to_latex(c_syms_vec) + r" \]"
         )
         latex_steps.append({
@@ -166,6 +163,7 @@ def api_da_soluzione_a_sistema():
         det_is_zero = (sp.simplify(det_A) == 0)
         
         color = "green" if not det_is_zero else "red"
+        # FIX IMPAGINAZIONE SEZIONE 4
         det_msg = "\\det(A) \\neq 0 \\rightarrow \\text{matrice invertibile}" if not det_is_zero else "\\det(A) = 0 \\rightarrow \\text{matrice singolare}"
         
         latex_steps.append({
@@ -184,7 +182,8 @@ def api_da_soluzione_a_sistema():
         adj_A = sp.simplify(cofactor_matrix.T)
         A_inv = sp.simplify(adj_A / det_A)
 
-        # CORREZIONE 3 (continua): Fix impaginazione con \[ \] e a capo tra elementi
+        # FIX IMPAGINAZIONE SEZIONE 5
+        # Metto ogni matrice su una riga separata per evitare overflow
         latex_steps.append({
             "title": "Matrice inversa",
             "content": (
@@ -201,15 +200,31 @@ def api_da_soluzione_a_sistema():
         for i, c_sym in enumerate(C_syms):
             sol_dict[c_sym] = sp.simplify(c_vector[i])
 
-        # CORREZIONE 3 (continua): Fix impaginazione
-        step6_content = (
+        # FIX IMPAGINAZIONE SEZIONE 6 (CRITICO)
+        # La matrice A_inv * b è troppo larga se messa su una riga.
+        # Soluzione: mostro l'operazione e poi mostro il risultato vettore su più righe o compatto.
+        
+        # Mostro la moltiplicazione
+        multiplication_str = (
             r"\[ \vec{c} = A^{-1} \cdot \vec{b} \]" + "\n\n"
-            r"\[ " + to_latex(c_syms_vec) + r" = " + to_latex(A_inv) + r" \cdot " + to_latex(b) + r" = " + to_latex(c_vector) + r" \]"
+            r"\[ " + to_latex(c_syms_vec) + r" = " + to_latex(A_inv) + r" \cdot " + to_latex(b) + r" \]"
         )
+        
         latex_steps.append({
-            "title": "Calcolo delle costanti",
-            "content": fix_latex_y_symbols(step6_content, time_type, n)
+            "title": "Calcolo delle costanti (Moltiplicazione)",
+            "content": fix_latex_y_symbols(multiplication_str, time_type, n)
         })
+
+        latex_steps.append({
+            "title": "Risultato Vettore Costanti",
+            "content": (
+                r"\[ " + to_latex(c_syms_vec) + r" = " + to_latex(c_vector) + r" \]"
+            )
+        })
+        
+        sol_dict = {}
+        for i, c_sym in enumerate(C_syms):
+            sol_dict[c_sym] = sp.simplify(c_vector[i])
 
         # 7. Costanti isolate
         sol_latex = []
@@ -239,18 +254,18 @@ def api_da_soluzione_a_sistema():
         for i in range(n):
             if time_type == 'continuous':
                 if i == 0:
-                    state_vars.append(f"x_{{{i+1}}}(t) = y(t)")
+                    state_vars.append(f"x_{{{i+1}}}({time_var_name}) = y({time_var_name})")
                 elif i == 1:
-                    state_vars.append(f"x_{{{i+1}}}(t) = \\dot{{y}}(t)")
+                    state_vars.append(f"x_{{{i+1}}}({time_var_name}) = \\dot{{y}}({time_var_name})")
                 elif i == 2:
-                    state_vars.append(f"x_{{{i+1}}}(t) = \\ddot{{y}}(t)")
+                    state_vars.append(f"x_{{{i+1}}}({time_var_name}) = \\ddot{{y}}({time_var_name})")
                 else:
-                    state_vars.append(f"x_{{{i+1}}}(t) = y^{{({i})}}(t)")
+                    state_vars.append(f"x_{{{i+1}}}({time_var_name}) = y^{{({i})}}({time_var_name})")
             else:
                 if i == 0:
-                    state_vars.append(f"x_{{{i+1}}}(k) = y(k)")
+                    state_vars.append(f"x_{{{i+1}}}({time_var_name}) = y({time_var_name})")
                 else:
-                    state_vars.append(f"x_{{{i+1}}}(k) = y(k+{i})")
+                    state_vars.append(f"x_{{{i+1}}}({time_var_name}) = y({time_var_name}+{i})")
         
         latex_steps.append({
             "title": "Variabili di stato introdotte",
@@ -278,11 +293,11 @@ def api_da_soluzione_a_sistema():
 
         html_content = f"""
         <div style="display: flex; flex-direction: column; gap: 20px; align-items: center; margin-top: 15px;">
-            <div style="display: flex; gap: 50px; justify-content: center; align-items: center;">
+            <div style="display: flex; gap: 50px; justify-content: center; align-items: center; flex-wrap: wrap;">
                 <div>\\[ A = {to_latex(A_comp)} \\]</div>
                 <div>\\[ B = {to_latex(B_comp)} \\]</div>
             </div>
-            <div style="display: flex; gap: 50px; justify-content: center; align-items: center;">
+            <div style="display: flex; gap: 50px; justify-content: center; align-items: center; flex-wrap: wrap;">
                 <div>\\[ C = {to_latex(C_comp)} \\]</div>
                 <div>\\[ D = {to_latex(D_comp)} \\]</div>
             </div>
@@ -290,9 +305,9 @@ def api_da_soluzione_a_sistema():
         """
         
         if u_term != 0:
-            html_content += f"<br><br><div style='text-align:center; font-size: 18px;'>Con ingresso \\( u(t) = {to_latex(u_term)} \\)</div>"
+            html_content += f"<br><br><div style='text-align:center; font-size: 18px;'>Con ingresso \\( u({time_var_name}) = {to_latex(u_term)} \\)</div>"
         else:
-            html_content += f"<br><br><div style='text-align:center; font-size: 18px;'>Sistema autonomo (ingresso \\( u(t) = 0 \\))</div>"
+            html_content += f"<br><br><div style='text-align:center; font-size: 18px;'>Sistema autonomo (ingresso \\( u({time_var_name}) = 0 \\))</div>"
 
         latex_steps.append({
             "title": "Matrici del sistema in forma compagna",
