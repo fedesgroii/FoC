@@ -9,6 +9,25 @@ da_soluzione_a_sistema_bp = Blueprint("da_soluzione_a_sistema", __name__)
 def to_latex(expr):
     return sp.latex(expr)
 
+def normalize_exponential(expr_str):
+    """
+    Converte e^(...) in exp(...)
+    Mantiene compatibilità con exp(...) già presente
+    Esempi:
+    - e^(2*t) → exp(2*t)
+    - e^(t+1) → exp(t+1)
+    - exp(t) → exp(t) (invariato)
+    """
+    if not isinstance(expr_str, str):
+        return expr_str
+    
+    # e^(...) → exp(...)
+    expr_str = re.sub(r'e\^\(([^)]+)\)', r'exp(\1)', expr_str)
+    # e**(...) → exp(...)
+    expr_str = re.sub(r'e\*\*\(([^)]+)\)', r'exp(\1)', expr_str)
+    
+    return expr_str
+
 def fix_latex_y_symbols(latex_str, time_type, n, is_derivative=True):
     # Replaces y_0, y_1... with proper derivatives or time shifts
     res = latex_str
@@ -70,7 +89,12 @@ def api_da_soluzione_a_sistema():
         for c in constants_str:
             local_dict[c] = sp.symbols(c)
 
-        y_expr = parse_expr(y_input_clean, local_dict=local_dict, transformations=transformations)
+        # MODIFICA 1: Normalizza esponenziali (e^(...) → exp(...))
+        y_input_normalized = normalize_exponential(y_input_clean)
+        
+        # MODIFICA 2: Espande automaticamente le espressioni fattorizzate
+        y_expr = parse_expr(y_input_normalized, local_dict=local_dict, transformations=transformations)
+        y_expr = sp.expand(y_expr)  # Espande exp(t)*(c1 + c2*t) → c1*exp(t) + c2*t*exp(t)
         
         latex_steps = []
 
@@ -126,10 +150,10 @@ def api_da_soluzione_a_sistema():
 
         c_syms_vec = sp.Matrix([c_sym for c_sym in C_syms])
         
+        # MODIFICA 3: Fix impaginazione LaTeX con \[ \] e a capo
         step3_content = (
-            "\\vec{b} = A \\cdot \\vec{c} \\\\\n"
-            "\\\\\n"
-            f"{to_latex(b)} = {to_latex(A)} \\cdot {to_latex(c_syms_vec)}"
+            r"\[ \vec{b} = A \cdot \vec{c} \] \\\\"
+            r"\[ " + to_latex(b) + r" = " + to_latex(A) + r" \cdot " + to_latex(c_syms_vec) + r" \]"
         )
         latex_steps.append({
             "title": "Sistema in forma matriciale",
@@ -146,7 +170,7 @@ def api_da_soluzione_a_sistema():
         latex_steps.append({
             "title": "Calcolo del determinante",
             "content": (
-                f"\\det(A) = {to_latex(det_A)} \\\\\n"
+                f"\\[ \\det(A) = {to_latex(det_A)} \\] \\\\"
                 f"\\textcolor{{{color}}}{{{det_msg}}}"
             )
         })
@@ -159,14 +183,13 @@ def api_da_soluzione_a_sistema():
         adj_A = sp.simplify(cofactor_matrix.T)
         A_inv = sp.simplify(adj_A / det_A)
 
+        # MODIFICA 3 (continua): Fix impaginazione con \[ \] e a capo tra elementi
         latex_steps.append({
             "title": "Matrice inversa",
             "content": (
-                f"\\text{{Matrice dei cofattori: }} \\text{{Cof}}(A) = {to_latex(cofactor_matrix)} \\\\\n"
-                "\\\\\n"
-                f"\\text{{Matrice aggiunta: }} \\text{{Adj}}(A) = \\text{{Cof}}(A)^T = {to_latex(adj_A)} \\\\\n"
-                "\\\\\n"
-                f"A^{{-1}} = \\frac{{1}}{{\\det(A)}} \\cdot \\text{{Adj}}(A) = {to_latex(A_inv)}"
+                f"\\[ \\text{{Matrice dei cofattori: }} \\text{{Cof}}(A) = {to_latex(cofactor_matrix)} \\] \\\\"
+                f"\\[ \\text{{Matrice aggiunta: }} \\text{{Adj}}(A) = \\text{{Cof}}(A)^T = {to_latex(adj_A)} \\] \\\\"
+                f"\\[ A^{{-1}} = \\frac{{1}}{{\\det(A)}} \\cdot \\text{{Adj}}(A) = {to_latex(A_inv)} \\]"
             )
         })
 
@@ -177,10 +200,10 @@ def api_da_soluzione_a_sistema():
         for i, c_sym in enumerate(C_syms):
             sol_dict[c_sym] = sp.simplify(c_vector[i])
 
+        # MODIFICA 3 (continua): Fix impaginazione
         step6_content = (
-            "\\vec{c} = A^{-1} \\cdot \\vec{b} \\\\\n"
-            "\\\\\n"
-            f"{to_latex(c_syms_vec)} = {to_latex(A_inv)} \\cdot {to_latex(b)} = {to_latex(c_vector)}"
+            r"\[ \vec{c} = A^{-1} \cdot \vec{b} \] \\"
+            r"\[ " + to_latex(c_syms_vec) + r" = " + to_latex(A_inv) + r" \cdot " + to_latex(b) + r" = " + to_latex(c_vector) + r" \]"
         )
         latex_steps.append({
             "title": "Calcolo delle costanti",
