@@ -188,9 +188,9 @@ def api_da_soluzione_a_sistema():
             "title": "Matrice inversa",
             "content": (
             r"\begin{align*}" +
-            r"\text{Matrice dei cofattori: } \mathrm{Cof}(A) &= " + to_latex(cofactor_matrix) + r"\\ \\ \\" +
-            r"\text{Matrice aggiunta: } \mathrm{Adj}(A) &= \mathrm{Cof}(A)^T = " + to_latex(adj_A) + r"\\ \\ \\" +
-            r"A^{-1} &= \frac{1}{\det(A)} \cdot \mathrm{Adj}(A) = " + to_latex(A_inv) +
+            r"&\text{Matrice dei cofattori: } \mathrm{Cof}(A) = \\ &" + to_latex(cofactor_matrix) + r"\\[2em]" +
+            r"&\text{Matrice aggiunta: } \mathrm{Adj}(A) = \mathrm{Cof}(A)^T = \\ &" + to_latex(adj_A) + r"\\[2em]" +
+            r"&A^{-1} = \frac{1}{\det(A)} \cdot \mathrm{Adj}(A) = \\ &" + to_latex(A_inv) +
             r"\end{align*}"
     )
 })
@@ -239,7 +239,11 @@ def api_da_soluzione_a_sistema():
         
         latex_steps.append({
             "title": "Costanti isolate",
-            "content": r"\begin{aligned} " + " \\\\ ".join(sol_latex) + r" \end{aligned}"
+            "content": (
+                r"\begin{align*}" + "\n" +
+                " \\\\[2.5em] ".join([f"&{s}" for s in sol_latex]) + "\n" +
+                r"\end{align*}"
+            )
         })
 
         # 8. Equazione finale
