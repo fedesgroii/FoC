@@ -150,9 +150,10 @@ def api_da_soluzione_a_sistema():
 
         c_syms_vec = sp.Matrix([c_sym for c_sym in C_syms])
         
-        # MODIFICA 3: Fix impaginazione LaTeX con \[ \] e a capo
+        # CORREZIONE 3: Fix impaginazione LaTeX con \[ \] e a capo
+        # Uso raw strings per evitare problemi di escape
         step3_content = (
-            r"\[ \vec{b} = A \cdot \vec{c} \] \\"
+            r"\[ \vec{b} = A \cdot \vec{c} \]" + "\n\n"
             r"\[ " + to_latex(b) + r" = " + to_latex(A) + r" \cdot " + to_latex(c_syms_vec) + r" \]"
         )
         latex_steps.append({
@@ -164,14 +165,14 @@ def api_da_soluzione_a_sistema():
         det_A = sp.simplify(A.det())
         det_is_zero = (sp.simplify(det_A) == 0)
         
-        color = "red" if det_is_zero else "green"
-        det_msg = "\\det(A) = 0 \\rightarrow \\text{matrice singolare}" if det_is_zero else "\\det(A) \\neq 0 \\rightarrow \\text{matrice invertibile}"
+        color = "green" if not det_is_zero else "red"
+        det_msg = "\\det(A) \\neq 0 \\rightarrow \\text{matrice invertibile}" if not det_is_zero else "\\det(A) = 0 \\rightarrow \\text{matrice singolare}"
         
         latex_steps.append({
             "title": "Calcolo del determinante",
             "content": (
-                f"\\[ \\det(A) = {to_latex(det_A)} \\] \\\\"
-                f"\\textcolor{{{color}}}{{{det_msg}}}"
+                r"\[ \det(A) = " + to_latex(det_A) + r" \]" + "\n\n"
+                r"\textcolor{" + color + r"}{" + det_msg + r"}"
             )
         })
         
@@ -183,13 +184,13 @@ def api_da_soluzione_a_sistema():
         adj_A = sp.simplify(cofactor_matrix.T)
         A_inv = sp.simplify(adj_A / det_A)
 
-        # MODIFICA 3 (continua): Fix impaginazione con \[ \] e a capo tra elementi
+        # CORREZIONE 3 (continua): Fix impaginazione con \[ \] e a capo tra elementi
         latex_steps.append({
             "title": "Matrice inversa",
             "content": (
-                f"\\[ \\text{{Matrice dei cofattori: }} \\text{{Cof}}(A) = {to_latex(cofactor_matrix)} \\] \\\\"
-                f"\\[ \\text{{Matrice aggiunta: }} \\text{{Adj}}(A) = \\text{{Cof}}(A)^T = {to_latex(adj_A)} \\] \\\\"
-                f"\\[ A^{{-1}} = \\frac{{1}}{{\\det(A)}} \\cdot \\text{{Adj}}(A) = {to_latex(A_inv)} \\]"
+                r"\[ \text{Matrice dei cofattori: } \mathrm{Cof}(A) = " + to_latex(cofactor_matrix) + r" \]" + "\n\n"
+                r"\[ \text{Matrice aggiunta: } \mathrm{Adj}(A) = \mathrm{Cof}(A)^T = " + to_latex(adj_A) + r" \]" + "\n\n"
+                r"\[ A^{-1} = \frac{1}{\det(A)} \cdot \mathrm{Adj}(A) = " + to_latex(A_inv) + r" \]"
             )
         })
 
@@ -200,9 +201,9 @@ def api_da_soluzione_a_sistema():
         for i, c_sym in enumerate(C_syms):
             sol_dict[c_sym] = sp.simplify(c_vector[i])
 
-        # MODIFICA 3 (continua): Fix impaginazione
+        # CORREZIONE 3 (continua): Fix impaginazione
         step6_content = (
-            r"\[ \vec{c} = A^{-1} \cdot \vec{b} \] \\"
+            r"\[ \vec{c} = A^{-1} \cdot \vec{b} \]" + "\n\n"
             r"\[ " + to_latex(c_syms_vec) + r" = " + to_latex(A_inv) + r" \cdot " + to_latex(b) + r" = " + to_latex(c_vector) + r" \]"
         )
         latex_steps.append({
@@ -222,7 +223,7 @@ def api_da_soluzione_a_sistema():
             "content": "\\begin{aligned} " + " \\\\ ".join(sol_latex) + " \\end{aligned}"
         })
 
-        # 4. Equazione finale
+        # 8. Equazione finale
         y_n_expr = equations[n].subs(sol_dict)
         y_n_expr = sp.simplify(sp.expand(y_n_expr))
         
@@ -233,7 +234,7 @@ def api_da_soluzione_a_sistema():
             "content": fix_latex_y_symbols(final_eq_str, time_type, n)
         })
 
-        # 5. Variabili di Stato
+        # 9. Variabili di Stato
         state_vars = []
         for i in range(n):
             if time_type == 'continuous':
@@ -256,34 +257,34 @@ def api_da_soluzione_a_sistema():
             "content": "\\begin{aligned} " + " \\\\ ".join(state_vars) + " \\end{aligned}"
         })
 
-        # 6. Matrici Finali
+        # 10. Matrici Finali
         coeffs = [sp.simplify(y_n_expr.diff(y_syms[i])) for i in range(n)]
         u_term = sp.simplify(y_n_expr - sum(coeffs[i]*y_syms[i] for i in range(n)))
         
-        A_state = sp.zeros(n, n)
+        A_comp = sp.zeros(n, n)
         for i in range(n - 1):
-            A_state[i, i + 1] = 1
+            A_comp[i, i + 1] = 1
         for i in range(n):
-            A_state[n - 1, i] = coeffs[i]
+            A_comp[n - 1, i] = coeffs[i]
             
-        B_state = sp.zeros(n, 1)
+        B_comp = sp.zeros(n, 1)
         if u_term != 0:
-            B_state[n - 1, 0] = 1 # Assuming input u(t) acts on the last state variable
+            B_comp[n - 1, 0] = 1 # Assuming input u(t) acts on the last state variable
         
-        C_state = sp.zeros(1, n)
-        C_state[0, 0] = 1
+        C_comp = sp.zeros(1, n)
+        C_comp[0, 0] = 1
         
-        D_state = sp.zeros(1, 1) # D is 0
+        D_comp = sp.zeros(1, 1) # D is 0
 
         html_content = f"""
         <div style="display: flex; flex-direction: column; gap: 20px; align-items: center; margin-top: 15px;">
             <div style="display: flex; gap: 50px; justify-content: center; align-items: center;">
-                <div>\\[ A = {to_latex(A_state)} \\]</div>
-                <div>\\[ B = {to_latex(B_state)} \\]</div>
+                <div>\\[ A = {to_latex(A_comp)} \\]</div>
+                <div>\\[ B = {to_latex(B_comp)} \\]</div>
             </div>
             <div style="display: flex; gap: 50px; justify-content: center; align-items: center;">
-                <div>\\[ C = {to_latex(C_state)} \\]</div>
-                <div>\\[ D = {to_latex(D_state)} \\]</div>
+                <div>\\[ C = {to_latex(C_comp)} \\]</div>
+                <div>\\[ D = {to_latex(D_comp)} \\]</div>
             </div>
         </div>
         """
