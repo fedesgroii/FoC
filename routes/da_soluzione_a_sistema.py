@@ -107,16 +107,87 @@ def api_da_soluzione_a_sistema():
             "content": "\\begin{aligned} " + " \\\\ ".join(eqs_latex) + " \\end{aligned}"
         })
 
-        # 3. Costanti isolate algebricamente
-        sys_eqs = [sp.Eq(equations[i], y_syms[i]) for i in range(n)]
+        # 3. Sistema in forma matriciale
         C_syms = [local_dict[c] for c in constants_str]
-        sol_list = sp.solve(sys_eqs, C_syms, dict=True)
 
-        if not sol_list:
-            return jsonify({"success": False, "error": "Impossibile isolare le costanti. Verifica che siano linearmente indipendenti."})
+        A = sp.zeros(n, n)
+        b = sp.zeros(n, 1)
+
+        for i in range(n):
+            eq = equations[i]
+            for j, c_sym in enumerate(C_syms):
+                A[i, j] = sp.simplify(eq.coeff(c_sym))
             
-        sol_dict = sol_list[0]
+            known_terms = eq
+            for c_sym in C_syms:
+                known_terms = known_terms.subs(c_sym, 0)
+            
+            b[i, 0] = sp.simplify(y_syms[i] - known_terms)
+
+        c_syms_vec = sp.Matrix([c_sym for c_sym in C_syms])
         
+        step3_content = (
+            "\\vec{b} = A \\cdot \\vec{c} \\\\\n"
+            "\\\\\n"
+            f"{to_latex(b)} = {to_latex(A)} \\cdot {to_latex(c_syms_vec)}"
+        )
+        latex_steps.append({
+            "title": "Sistema in forma matriciale",
+            "content": fix_latex_y_symbols(step3_content, time_type, n)
+        })
+
+        # 4. Calcolo del determinante
+        det_A = sp.simplify(A.det())
+        det_is_zero = (sp.simplify(det_A) == 0)
+        
+        color = "red" if det_is_zero else "green"
+        det_msg = "\\det(A) = 0 \\rightarrow \\text{matrice singolare}" if det_is_zero else "\\det(A) \\neq 0 \\rightarrow \\text{matrice invertibile}"
+        
+        latex_steps.append({
+            "title": "Calcolo del determinante",
+            "content": (
+                f"\\det(A) = {to_latex(det_A)} \\\\\n"
+                f"\\textcolor{{{color}}}{{{det_msg}}}"
+            )
+        })
+        
+        if det_is_zero:
+            return jsonify({"success": False, "error": "Impossibile isolare le costanti. Il determinante della matrice A è zero (costanti linearmente dipendenti)."})
+
+        # 5. Matrice inversa
+        cofactor_matrix = A.cofactor_matrix()
+        adj_A = sp.simplify(cofactor_matrix.T)
+        A_inv = sp.simplify(adj_A / det_A)
+
+        latex_steps.append({
+            "title": "Matrice inversa",
+            "content": (
+                f"\\text{{Matrice dei cofattori: }} \\text{{Cof}}(A) = {to_latex(cofactor_matrix)} \\\\\n"
+                "\\\\\n"
+                f"\\text{{Matrice aggiunta: }} \\text{{Adj}}(A) = \\text{{Cof}}(A)^T = {to_latex(adj_A)} \\\\\n"
+                "\\\\\n"
+                f"A^{{-1}} = \\frac{{1}}{{\\det(A)}} \\cdot \\text{{Adj}}(A) = {to_latex(A_inv)}"
+            )
+        })
+
+        # 6. Calcolo delle costanti
+        c_vector = sp.simplify(A_inv * b)
+        
+        sol_dict = {}
+        for i, c_sym in enumerate(C_syms):
+            sol_dict[c_sym] = sp.simplify(c_vector[i])
+
+        step6_content = (
+            "\\vec{c} = A^{-1} \\cdot \\vec{b} \\\\\n"
+            "\\\\\n"
+            f"{to_latex(c_syms_vec)} = {to_latex(A_inv)} \\cdot {to_latex(b)} = {to_latex(c_vector)}"
+        )
+        latex_steps.append({
+            "title": "Calcolo delle costanti",
+            "content": fix_latex_y_symbols(step6_content, time_type, n)
+        })
+
+        # 7. Costanti isolate
         sol_latex = []
         for c_sym in C_syms:
             if c_sym in sol_dict:
