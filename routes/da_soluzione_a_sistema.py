@@ -251,10 +251,29 @@ def api_da_soluzione_a_sistema():
         y_n_expr = sp.simplify(sp.expand(y_n_expr))
         
         # Build the final equation y_n = ...
-        final_eq_str = f"y_{n} = {to_latex(y_n_expr)}"
+        final_eq_latex = fix_latex_y_symbols(f"y_{n} = {to_latex(y_n_expr)}", time_type, n)
+        
+        final_eq_html = f"""
+        <div style="
+            background: linear-gradient(135deg, #f8f9fa 0%, #f0f4f8 100%);
+            border: 3px solid #007bff;
+            border-radius: 12px;
+            padding: 25px;
+            margin: 20px 0;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        ">
+            <h3 style="margin-top: 0; color: #007bff; font-size: 1.3rem; text-transform: uppercase; letter-spacing: 1px;">Risultato Finale</h3>
+            <div style="font-size: 2.2rem; font-weight: bold; color: #212529; overflow-x: auto; padding: 10px 0;">
+                \\( {final_eq_latex} \\)
+            </div>
+        </div>
+        """
+        
         latex_steps.append({
             "title": "Equazione differenziale finale" if time_type == 'continuous' else "Equazione alle differenze finale",
-            "content": fix_latex_y_symbols(final_eq_str, time_type, n)
+            "content": final_eq_html,
+            "is_html": True
         })
 
         # 9. Variabili di Stato
@@ -299,26 +318,58 @@ def api_da_soluzione_a_sistema():
         
         D_comp = sp.zeros(1, 1) # D is 0
 
+        # Create vertical layout for matrices with clear labels and increased size
         html_content = f"""
-        <div style="display: flex; flex-direction: column; gap: 20px; align-items: center; margin-top: 15px;">
-            <div style="display: flex; gap: 50px; justify-content: center; align-items: center; flex-wrap: wrap;">
-                <div>\\( A = {to_latex(A_comp)} \\)</div>
-                <div>\\( B = {to_latex(B_comp)} \\)</div>
+        <div style="display: flex; flex-direction: column; gap: 25px; align-items: center; margin-top: 25px; width: 100%;">
+            <div style="background: white; border: 1px solid #dee2e6; border-radius: 10px; padding: 20px; width: 95%; max-width: 700px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 6px solid #28a745;">
+                <div style="font-weight: bold; color: #198754; margin-bottom: 15px; font-size: 1.2rem; display: flex; align-items: center;">
+                    <span style="background: #28a745; color: white; border-radius: 4px; padding: 2px 8px; margin-right: 10px; font-size: 0.9rem;">A</span> 
+                    Matrice di Stato (Dinamica)
+                </div>
+                <div style="font-size: 2rem; overflow-x: auto; padding: 15px 0; text-align: center; color: #212529;">
+                    \\( A = {to_latex(A_comp)} \\)
+                </div>
             </div>
-            <div style="display: flex; gap: 50px; justify-content: center; align-items: center; flex-wrap: wrap;">
-                <div>\\( C = {to_latex(C_comp)} \\)</div>
-                <div>\\( D = {to_latex(D_comp)} \\)</div>
+            
+            <div style="background: white; border: 1px solid #dee2e6; border-radius: 10px; padding: 20px; width: 95%; max-width: 700px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 6px solid #007bff;">
+                <div style="font-weight: bold; color: #007bff; margin-bottom: 15px; font-size: 1.2rem; display: flex; align-items: center;">
+                    <span style="background: #007bff; color: white; border-radius: 4px; padding: 2px 8px; margin-right: 10px; font-size: 0.9rem;">B</span> 
+                    Matrice degli Ingressi (Controllo)
+                </div>
+                <div style="font-size: 2rem; overflow-x: auto; padding: 15px 0; text-align: center; color: #212529;">
+                    \\( B = {to_latex(B_comp)} \\)
+                </div>
+            </div>
+            
+            <div style="background: white; border: 1px solid #dee2e6; border-radius: 10px; padding: 20px; width: 95%; max-width: 700px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 6px solid #fd7e14;">
+                <div style="font-weight: bold; color: #fd7e14; margin-bottom: 15px; font-size: 1.2rem; display: flex; align-items: center;">
+                    <span style="background: #fd7e14; color: white; border-radius: 4px; padding: 2px 8px; margin-right: 10px; font-size: 0.9rem;">C</span> 
+                    Matrice delle Uscite (Osservazione)
+                </div>
+                <div style="font-size: 2rem; overflow-x: auto; padding: 15px 0; text-align: center; color: #212529;">
+                    \\( C = {to_latex(C_comp)} \\)
+                </div>
+            </div>
+            
+            <div style="background: white; border: 1px solid #dee2e6; border-radius: 10px; padding: 20px; width: 95%; max-width: 700px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 6px solid #6c757d;">
+                <div style="font-weight: bold; color: #495057; margin-bottom: 15px; font-size: 1.2rem; display: flex; align-items: center;">
+                    <span style="background: #6c757d; color: white; border-radius: 4px; padding: 2px 8px; margin-right: 10px; font-size: 0.9rem;">D</span> 
+                    Matrice di Legame Diretto
+                </div>
+                <div style="font-size: 2rem; overflow-x: auto; padding: 15px 0; text-align: center; color: #212529;">
+                    \\( D = {to_latex(D_comp)} \\)
+                </div>
             </div>
         </div>
         """
         
         if u_term != 0:
-            html_content += f"<br><br><div style='text-align:center; font-size: 18px;'>Con ingresso \\( u({time_var_name}) = {to_latex(u_term)} \\)</div>"
+            html_content += f"<div style='text-align:center; margin-top: 20px; padding: 15px; background: #e7f3ff; border-radius: 8px; color: #004085; font-weight: 500;'>Ingresso calcolato: \\( u({time_var_name}) = {to_latex(u_term)} \\)</div>"
         else:
-            html_content += f"<br><br><div style='text-align:center; font-size: 18px;'>Sistema autonomo (ingresso \\( u({time_var_name}) = 0 \\))</div>"
+            html_content += f"<div style='text-align:center; margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; color: #6c757d; font-style: italic;'>Sistema autonomo (ingresso nullo)</div>"
 
         latex_steps.append({
-            "title": "Matrici del sistema in forma compagna",
+            "title": "Rappresentazione in Spazio di Stato (Forma Compagna)",
             "content": html_content,
             "is_html": True
         })
