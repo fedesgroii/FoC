@@ -116,11 +116,28 @@ class ShiftSolver:
         })
 
     def compute_difference_equation(self):
-        self.diff_eq_html = f"\\[ y(t+{self.n}) = 0 \\]"
+        final_eq_latex = f"y(t+{self.n}) = 0"
+        
+        self.diff_eq_html = f"""
+        <div style="
+            background: linear-gradient(135deg, #f8f9fa 0%, #f0f4f8 100%);
+            border: 3px solid #007bff;
+            border-radius: 12px;
+            padding: 25px;
+            margin: 20px 0;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        ">
+            <h3 style="margin-top: 0; color: #007bff; font-size: 1.3rem; text-transform: uppercase; letter-spacing: 1px;">Equazione Finale</h3>
+            <div style="font-size: 2.2rem; font-weight: bold; color: #212529; overflow-x: auto; padding: 10px 0;">
+                \\( {final_eq_latex} \\)
+            </div>
+        </div>
+        """
         
         self.steps_latex.append({
             "title": "Derivazione Equazione alle Differenze",
-            "content": f"<p>Poiché tutte le funzioni Delta hanno supporto finito, si spengono progressivamente. Dopo \\( {self.n} \\) istanti, l'uscita libera del sistema (senza ingressi futuri) diventa zero.</p><div>{self.diff_eq_html}</div>",
+            "content": f"<p>Poiché tutte le funzioni Delta hanno supporto finito, si spengono progressivamente. Dopo \\( {self.n} \\) istanti, l'uscita libera del sistema (senza ingressi futuri) diventa zero.</p>{self.diff_eq_html}",
             "is_html": True
         })
 
@@ -153,15 +170,47 @@ class ShiftSolver:
         self.D_mat = sp.Matrix([[0]])
         
         html_content = f"""
-        <div style="display: flex; flex-direction: column; gap: 20px; align-items: center; margin-top: 15px; width: 100%;">
-            <p>Il sistema in forma autonoma (risposta all'impulso vista come evoluzione libera da stato iniziale) presenta una matrice dinamica <strong>nilpotente</strong> (spostamento puro).</p>
-            <div style="display: flex; gap: 50px; justify-content: center; align-items: center; width: 100%;">
-                <div style="flex: 1; text-align: right;">\\[ \\text{{Matrice dinamica }} A \\; ({self.n} \\times {self.n}): \\quad A = {to_latex(self.A)} \\]</div>
-                <div style="flex: 1; text-align: left;">\\[ \\text{{Matrice ingresso }} B \\; ({self.n} \\times 1): \\quad B = {to_latex(self.B)} \\]</div>
+        <div style="display: flex; flex-direction: column; gap: 25px; align-items: center; margin-top: 25px; width: 100%;">
+            <p style="text-align: center; color: #666; font-style: italic;">Il sistema in forma autonoma presenta una matrice dinamica <strong>nilpotente</strong> (spostamento puro).</p>
+            
+            <div style="background: white; border: 1px solid #dee2e6; border-radius: 10px; padding: 20px; width: 95%; max-width: 700px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 6px solid #28a745;">
+                <div style="font-weight: bold; color: #198754; margin-bottom: 15px; font-size: 1.2rem; display: flex; align-items: center;">
+                    <span style="background: #28a745; color: white; border-radius: 4px; padding: 2px 8px; margin-right: 10px; font-size: 0.9rem;">A</span> 
+                    Matrice di Stato (Dinamica)
+                </div>
+                <div style="font-size: 2rem; overflow-x: auto; padding: 15px 0; text-align: center; color: #212529;">
+                    \\( A = {to_latex(self.A)} \\)
+                </div>
             </div>
-            <div style="display: flex; gap: 50px; justify-content: center; align-items: center; width: 100%;">
-                <div style="flex: 1; text-align: right;">\\[ \\text{{Matrice uscita }} C \\; (1 \\times {self.n}): \\quad C = {to_latex(self.C)} \\]</div>
-                <div style="flex: 1; text-align: left;">\\[ \\text{{Legame diretto }} D \\; (1 \\times 1): \\quad D = {to_latex(self.D_mat)} \\]</div>
+            
+            <div style="background: white; border: 1px solid #dee2e6; border-radius: 10px; padding: 20px; width: 95%; max-width: 700px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 6px solid #007bff;">
+                <div style="font-weight: bold; color: #007bff; margin-bottom: 15px; font-size: 1.2rem; display: flex; align-items: center;">
+                    <span style="background: #007bff; color: white; border-radius: 4px; padding: 2px 8px; margin-right: 10px; font-size: 0.9rem;">B</span> 
+                    Matrice degli Ingressi (Controllo)
+                </div>
+                <div style="font-size: 2rem; overflow-x: auto; padding: 15px 0; text-align: center; color: #212529;">
+                    \\( B = {to_latex(self.B)} \\)
+                </div>
+            </div>
+            
+            <div style="background: white; border: 1px solid #dee2e6; border-radius: 10px; padding: 20px; width: 95%; max-width: 700px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 6px solid #fd7e14;">
+                <div style="font-weight: bold; color: #fd7e14; margin-bottom: 15px; font-size: 1.2rem; display: flex; align-items: center;">
+                    <span style="background: #fd7e14; color: white; border-radius: 4px; padding: 2px 8px; margin-right: 10px; font-size: 0.9rem;">C</span> 
+                    Matrice delle Uscite (Osservazione)
+                </div>
+                <div style="font-size: 2rem; overflow-x: auto; padding: 15px 0; text-align: center; color: #212529;">
+                    \\( C = {to_latex(self.C)} \\)
+                </div>
+            </div>
+            
+            <div style="background: white; border: 1px solid #dee2e6; border-radius: 10px; padding: 20px; width: 95%; max-width: 700px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 6px solid #6c757d;">
+                <div style="font-weight: bold; color: #495057; margin-bottom: 15px; font-size: 1.2rem; display: flex; align-items: center;">
+                    <span style="background: #6c757d; color: white; border-radius: 4px; padding: 2px 8px; margin-right: 10px; font-size: 0.9rem;">D</span> 
+                    Matrice di Legame Diretto
+                </div>
+                <div style="font-size: 2rem; overflow-x: auto; padding: 15px 0; text-align: center; color: #212529;">
+                    \\( D = {to_latex(self.D_mat)} \\)
+                </div>
             </div>
         </div>
         """
