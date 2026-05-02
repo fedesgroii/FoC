@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="it">
+
 <head>
   <meta charset="UTF-8">
   <title>Linearizzazione</title>
@@ -7,7 +8,113 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css">
   <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <style>
+    :root {
+      --kb-bg: rgba(15, 23, 42, 0.9);
+      --key-bg: rgba(255, 255, 255, 0.1);
+      --key-hover: rgba(255, 255, 255, 0.2);
+      --accent-blue: #38bdf8;
+      --accent-purple: #a855f7;
+      --text-main: #f8fafc;
+    }
+
+    .math-keyboard {
+      position: fixed;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 600px;
+      background: var(--kb-bg);
+      backdrop-filter: blur(15px);
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px 20px 0 0;
+      padding: 15px;
+      box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
+      z-index: 2000;
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .math-keyboard.hidden {
+      transform: translate(-50%, 100%);
+    }
+
+    .keyboard-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      color: var(--text-main);
+    }
+
+    .keyboard-row {
+      display: flex;
+      gap: 5px;
+      margin-bottom: 5px;
+      justify-content: center;
+    }
+
+    .math-key {
+      flex: 1;
+      height: 40px;
+      border: none;
+      border-radius: 8px;
+      background: var(--key-bg);
+      color: var(--text-main);
+      font-size: 0.95rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .math-key:hover {
+      background: var(--key-hover);
+    }
+
+    .math-key.fn {
+      color: var(--accent-blue);
+    }
+
+    .math-key.var {
+      color: var(--accent-purple);
+      font-style: italic;
+    }
+
+    .math-key.op {
+      background: rgba(56, 189, 248, 0.1);
+      color: var(--accent-blue);
+    }
+
+    .math-key.ctrl {
+      background: rgba(239, 68, 68, 0.1);
+      color: #f87171;
+    }
+
+    .math-key.wide {
+      flex: 2;
+    }
+
+    .kb-toggle {
+      background: var(--accent-blue);
+      color: white;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 2px 8px;
+      cursor: pointer;
+      margin-left: 5px;
+      font-size: 16px;
+      vertical-align: middle;
+      transition: all 0.3s ease;
+    }
+    
+    .kb-toggle.inactive {
+      background: #6c757d;
+      opacity: 0.7;
+    }
+  </style>
 </head>
+
 <body>
   <div id="sidebar-placeholder"></div>
   <script>
@@ -28,77 +135,136 @@
         };
       });
   </script>
-  
+
   <div id="main">
     <div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 0px;">
-        <button class="openbtn" onclick="openNav()" style="padding-top: 0px;" >☰</button>
-        <div>
-          <h2 style="margin: 0; font-size: 25px;">Linearizzazione di sistemi non‑lineari</h2>
-          <p class="description" style="margin-bottom: 0;">
-            Inserisci il numero di equazioni del tuo sistema (fino a 4) e le funzioni
-            \(f_i(x,u)\). Ricorda di inserire esplicitamente il simbolo * per indicare le moltiplicazioni (es. scrivi \(x * u\), non \(xu\)).
-          </p>
-          <p class="description" style="margin-top: 4px;">Eventuali celle vuote verranno considerate come zero.</p>
-          <div style="margin:0px 0;font-size:16px;">
-    <label for="matrixSize">Numero di equazioni:</label>
-    <select id="matrixSize">
-      <option value="1">1</option>
-      <option value="2" selected>2</option>
-      <option value="3">3</option>
-      <option value="4">4</option>
-    </select>
-    <br><br>
-    <label for="domainSelect">Dominio:</label>
-    <select id="domainSelect">
-      <option value="typeContinuo" selected>Continuo (T = ℝ)</option>
-      <option value="typeDiscreto">Discreto (T = ℤ)</option>
-    </select>
-    <br><br>
-    <label for="inputUe">Condizione di equilibrio \( u_e = \)</label>
-    <input id="inputUe" type="text" placeholder="es. 0" style="width: 100px; font-size: 16px; text-align: center;">
-  </div>
+      <button class="openbtn" onclick="openNav()" style="padding-top: 0px;">☰</button>
+      <div>
+        <h2 style="margin: 0; font-size: 25px;">Linearizzazione di sistemi non‑lineari</h2>
+        <p class="description" style="margin-bottom: 0;">
+          Inserisci il numero di equazioni del tuo sistema (fino a 4) e le funzioni
+          \(f_i(x,u)\). Ricorda di inserire esplicitamente il simbolo * per indicare le moltiplicazioni (es. scrivi \(x
+          * u\), non \(xu\)).
+        </p>
+        <p class="description" style="margin-top: 4px;">Eventuali celle vuote verranno considerate come zero.</p>
+        <div style="margin:0px 0;font-size:16px;">
+          <label for="matrixSize">Numero di equazioni:</label>
+          <select id="matrixSize">
+            <option value="1">1</option>
+            <option value="2" selected>2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+          </select>
+          <br><br>
+          <label for="domainSelect">Dominio:</label>
+          <select id="domainSelect">
+            <option value="typeContinuo" selected>Continuo (T = ℝ)</option>
+            <option value="typeDiscreto">Discreto (T = ℤ)</option>
+          </select>
+          <br><br>
+          <label for="inputUe">Condizione di equilibrio \( u_e = \)</label>
+          <input id="inputUe" type="text" placeholder="es. 0"
+            style="width: 100px; font-size: 16px; text-align: center;" readonly>
+          <button class="kb-toggle" onclick="toggleKeyboardMode()" title="Attiva/Disattiva tastiera matematica">⌨️</button>
         </div>
       </div>
+    </div>
 
-      <div class="container">
-        <main class="content">
-      <!-- ► Visualizzazione sistema dinamico ◄ -->
-      <div id="formulaSistema" style="text-align:center; font-size: 20px; margin-top: 0px; margin-bottom: 10px;">
-        \\[
+    <div class="container">
+      <main class="content">
+        <!-- ► Visualizzazione sistema dinamico ◄ -->
+        <div id="formulaSistema" style="text-align:center; font-size: 20px; margin-top: 0px; margin-bottom: 10px;">
+          \\[
           \\begin{cases}
           \\dot{x}(t) = f(x(t), u(t)) \\\\
           y(t) = h(x(t), u(t))
           \\end{cases}
-        \\]
-      </div>
- 
-      <!-- ► Matrice colonna dinamica f(x,u) ◄ -->
-      <div class="matrix-group" style="text-align: center; margin-top: 0px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
-        <div class="centered-matrix">
-          <span id="matrixLabelA" style="font-size: 20px; display: block; text-align: center;"></span>
-          <span id="leftBracketA" style="font-size: 25px;"></span>
-          <div id="matrixA" class="matrix"></div>
-          <span id="rightBracketA" style="font-size: 25px;"></span>
+          \\]
         </div>
-      </div>
 
-      <div style="text-align: center; margin-top: 10px;">
-        <span id="labelHXU" style="font-size: 20px;">\( h(x, u) = \)</span>
-        <input type="text" id="equazioneUscita" name="equazioneUscita"
-               style="width: 230px; font-size: 18px; text-align: center;">
-      </div>
-
-      <form id="equazioniForm" onsubmit="return false;">
-        <div style="margin-top: 20px; text-align: center;">
-          <button onclick="invioLinearizzazione()">Calcola linearizzazione</button>
+        <!-- ► Matrice colonna dinamica f(x,u) ◄ -->
+        <div class="matrix-group"
+          style="text-align: center; margin-top: 0px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
+          <div class="centered-matrix">
+            <span id="matrixLabelA" style="font-size: 20px; display: block; text-align: center;"></span>
+            <span id="leftBracketA" style="font-size: 25px;"></span>
+            <div id="matrixA" class="matrix"></div>
+            <span id="rightBracketA" style="font-size: 25px;"></span>
+          </div>
         </div>
-      </form>
-      <div id="output" class="output">
-        <p style="text-align:center; color:#888; font-style:italic;">Nessun input ricevuto...</p>
+
+        <div style="text-align: center; margin-top: 10px;">
+          <span id="labelHXU" style="font-size: 20px;">\( h(x, u) = \)</span>
+          <input type="text" id="equazioneUscita" name="equazioneUscita"
+            style="width: 230px; font-size: 18px; text-align: center;" readonly>
+          <button class="kb-toggle" onclick="toggleKeyboardMode()" title="Attiva/Disattiva tastiera matematica">⌨️</button>
+        </div>
+
+        <form id="equazioniForm" onsubmit="return false;">
+          <div style="margin-top: 20px; text-align: center;">
+            <button onclick="invioLinearizzazione()">Calcola linearizzazione</button>
+          </div>
+        </form>
+        <div id="output" class="output">
+          <p style="text-align:center; color:#888; font-style:italic;">Nessun input ricevuto...</p>
+        </div>
+      </main>
+    </div> <!-- chiusura .container -->
+  </div> <!-- chiusura #main -->
+
+  <!-- Struttura Tastiera -->
+  <div id="math-keyboard" class="math-keyboard hidden">
+    <div class="keyboard-header">
+      <span style="font-weight: bold; margin-left: 10px;">Tastiera Matematica</span>
+      <button onclick="toggleKeyboard()" class="btn btn-sm btn-outline-danger">Chiudi</button>
+    </div>
+
+    <div class="keyboard-body">
+      <div class="keyboard-row">
+        <button class="math-key fn" onclick="insertMath('sin(')">sin</button>
+        <button class="math-key fn" onclick="insertMath('cos(')">cos</button>
+        <button class="math-key fn" onclick="insertMath('exp(')">eˣ</button>
+        <button class="math-key fn" onclick="insertMath('log(')">ln</button>
+        <button class="math-key fn" onclick="insertMath('sqrt(')">√</button>
       </div>
-        </main>
-      </div> <!-- chiusura .container -->
-    </div> <!-- chiusura #main -->
+      <div class="keyboard-row">
+        <button class="math-key var" onclick="insertMath('x_1')">x₁</button>
+        <button class="math-key var" onclick="insertMath('x_2')">x₂</button>
+        <button class="math-key var" onclick="insertMath('x_3')">x₃</button>
+        <button class="math-key var" onclick="insertMath('x_4')">x₄</button>
+        <button class="math-key var" onclick="insertMath('u')">u</button>
+      </div>
+      <div class="keyboard-row">
+        <button class="math-key num" onclick="insertMath('7')">7</button>
+        <button class="math-key num" onclick="insertMath('8')">8</button>
+        <button class="math-key num" onclick="insertMath('9')">9</button>
+        <button class="math-key op" onclick="insertMath('/')">÷</button>
+        <button class="math-key op" onclick="insertMath('^')">xʸ</button>
+        <button class="math-key ctrl" onclick="backspace()">⌫</button>
+      </div>
+      <div class="keyboard-row">
+        <button class="math-key num" onclick="insertMath('4')">4</button>
+        <button class="math-key num" onclick="insertMath('5')">5</button>
+        <button class="math-key num" onclick="insertMath('6')">6</button>
+        <button class="math-key op" onclick="insertMath('*')">×</button>
+        <button class="math-key op" onclick="insertMath('(')">(</button>
+        <button class="math-key op" onclick="insertMath(')')">)</button>
+      </div>
+      <div class="keyboard-row">
+        <button class="math-key num" onclick="insertMath('1')">1</button>
+        <button class="math-key num" onclick="insertMath('2')">2</button>
+        <button class="math-key num" onclick="insertMath('3')">3</button>
+        <button class="math-key op" onclick="insertMath('-')">−</button>
+        <button class="math-key op" onclick="insertMath('+')">+</button>
+        <button class="math-key num" onclick="insertMath('0')">0</button>
+      </div>
+      <div class="keyboard-row">
+        <button class="math-key num" onclick="insertMath('.')">.</button>
+        <button class="math-key ctrl wide" onclick="clearInput()">CANC</button>
+        <button class="math-key op wide" onclick="invioLinearizzazione(); toggleKeyboard();">RISOLVI</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ► JS LOGIC ◄ -->
   <script>
@@ -120,8 +286,16 @@
         input.style.textAlign = "center";
         input.style.fontSize = window.innerWidth <= 768 ? "14px" : "20px";
         input.style.boxSizing = "border-box";
-      
- 
+        if (isKeyboardActive) input.setAttribute('readonly', true);
+
+        // Listener per la tastiera
+        input.addEventListener('focus', function () {
+          if (isKeyboardActive) {
+            activeInput = this;
+            document.getElementById('math-keyboard').classList.remove('hidden');
+          }
+        });
+
         container.appendChild(input);
       }
 
@@ -154,15 +328,15 @@
 
 
     /* Invio al backend */
-    function invioLinearizzazione(){
+    function invioLinearizzazione() {
       mostraSistemaInserito();
-      const size=parseInt(document.getElementById('matrixSize').value);
-      const eqs=[];
-      for(let i=0;i<size;i++){
-        const v=document.getElementById(`cell_A_${i}_0`).value.trim()||'0';
+      const size = parseInt(document.getElementById('matrixSize').value);
+      const eqs = [];
+      for (let i = 0; i < size; i++) {
+        const v = document.getElementById(`cell_A_${i}_0`).value.trim() || '0';
         eqs.push(v);
       }
-      const h = document.getElementById('equazioneUscita').value||'0';
+      const h = document.getElementById('equazioneUscita').value || '0';
       const dominio = document.getElementById('domainSelect').value;
       const u_e = document.getElementById("inputUe").value.trim() || "0";
       fetch('/api/linearizzazione', {
@@ -175,20 +349,20 @@
           dominio: dominio === 'typeDiscreto' ? 'typeDiscreto' : 'typeContinuo'
         })
       })
-      .then(r=>r.json())
-      .then(res=>{
-        if(res.success){
-          showRisultato(res);
-        } else {
-          // Append error below existing content
+        .then(r => r.json())
+        .then(res => {
+          if (res.success) {
+            showRisultato(res);
+          } else {
+            // Append error below existing content
+            const out = document.getElementById('output');
+            out.innerHTML += `<p style="color:red">Errore durante il calcolo: ${res.errore}</p>`;
+          }
+        })
+        .catch(err => {
           const out = document.getElementById('output');
-          out.innerHTML += `<p style="color:red">Errore durante il calcolo: ${res.errore}</p>`;
-        }
-      })
-      .catch(err=>{
-        const out=document.getElementById('output');
-        out.innerHTML += `<p style="color:red">Errore durante il calcolo: ${err.message}</p>`;
-      });
+          out.innerHTML += `<p style="color:red">Errore durante il calcolo: ${err.message}</p>`;
+        });
     }
 
     function mostraSistemaInserito() {
@@ -201,9 +375,9 @@
         let val = document.getElementById(`cell_A_${i}_0`).value.trim() || '0';
         val = val.replace(/\*/g, ''); // Rimuove gli asterischi per visualizzazione implicita
         if (isDiscrete) {
-          eqs.push(`x_{${i+1}}(t+1) &= ${val}`);
+          eqs.push(`x_{${i + 1}}(t+1) &= ${val}`);
         } else {
-          eqs.push(`\\dot{x}_{${i+1}}(t) &= ${val}`);
+          eqs.push(`\\dot{x}_{${i + 1}}(t) &= ${val}`);
         }
       }
       const h = document.getElementById('equazioneUscita').value.trim() || '0';
@@ -224,10 +398,10 @@
       document.getElementById('output').innerHTML = sistema;
       MathJax.typesetPromise([document.getElementById('output')]);
     }
-    function showRisultato(res){
+    function showRisultato(res) {
       const out = document.getElementById('output');
-      if(!res.success){ out.innerHTML='<p style="color:red">'+res.errore+'</p>'; return;}
-      
+      if (!res.success) { out.innerHTML = '<p style="color:red">' + res.errore + '</p>'; return; }
+
       let stepsHtml = "";
       if (Array.isArray(res.latex)) {
         stepsHtml = res.latex.map((step, idx) => `
@@ -239,33 +413,112 @@
       out.innerHTML += stepsHtml;
       MathJax.typesetPromise([out]);
     }
-</script>
-<script>
-  function aggiornaFormulaSistema() {
-    const dominio = document.getElementById('domainSelect').value;
-    const formulaDiv = document.getElementById('formulaSistema');
 
-    if (dominio === 'typeDiscreto') {
-      formulaDiv.innerHTML = `\\[
+    // --- LOGICA TASTIERA ---
+    let isKeyboardActive = true;
+    let activeInput = null;
+
+    function toggleKeyboardMode() {
+      isKeyboardActive = !isKeyboardActive;
+      const keyboard = document.getElementById('math-keyboard');
+      const allInputs = document.querySelectorAll('input[type="text"]');
+      const toggleBtns = document.querySelectorAll('.kb-toggle');
+
+      if (isKeyboardActive) {
+        allInputs.forEach(input => input.setAttribute('readonly', true));
+        toggleBtns.forEach(btn => btn.classList.remove('inactive'));
+      } else {
+        allInputs.forEach(input => input.removeAttribute('readonly'));
+        toggleBtns.forEach(btn => btn.classList.add('inactive'));
+        keyboard.classList.add('hidden');
+        if (activeInput) activeInput.focus();
+      }
+    }
+
+    function insertMath(val) {
+      if (!isKeyboardActive || !activeInput) return;
+      let start = activeInput.selectionStart;
+      let end = activeInput.selectionEnd;
+      let text = activeInput.value;
+      let insertion = val;
+      let cursorOffset = 0;
+
+      if (val === '^') {
+        insertion = '^()';
+        cursorOffset = -1;
+      } else if (val.endsWith('(')) {
+        insertion = val + ')';
+        cursorOffset = -1;
+      }
+
+      activeInput.value = text.substring(0, start) + insertion + text.substring(end);
+      const newPos = start + insertion.length + cursorOffset;
+      activeInput.setSelectionRange(newPos, newPos);
+      activeInput.focus();
+    }
+
+    function backspace() {
+      if (!activeInput) return;
+      let start = activeInput.selectionStart;
+      if (start > 0) {
+        activeInput.value = activeInput.value.substring(0, start - 1) + activeInput.value.substring(start);
+        activeInput.setSelectionRange(start - 1, start - 1);
+      }
+      activeInput.focus();
+    }
+
+    function clearInput() {
+      if (!activeInput) return;
+      activeInput.value = "";
+      activeInput.focus();
+    }
+
+    function toggleKeyboard() {
+      // Per il tasto "Chiudi"
+      document.getElementById('math-keyboard').classList.add('hidden');
+    }
+
+    // Listener per input statici
+    document.getElementById("equazioneUscita").addEventListener("focus", function () {
+      if (isKeyboardActive) {
+        activeInput = this;
+        document.getElementById('math-keyboard').classList.remove('hidden');
+      }
+    });
+    document.getElementById("inputUe").addEventListener("focus", function () {
+      if (isKeyboardActive) {
+        activeInput = this;
+        document.getElementById('math-keyboard').classList.remove('hidden');
+      }
+    });
+  </script>
+  <script>
+    function aggiornaFormulaSistema() {
+      const dominio = document.getElementById('domainSelect').value;
+      const formulaDiv = document.getElementById('formulaSistema');
+
+      if (dominio === 'typeDiscreto') {
+        formulaDiv.innerHTML = `\\[
         \\begin{cases}
         x(t+1) = f(x(t), u(t)) \\\\
         y(t) = h(x(t), u(t))
         \\end{cases}
       \\]`;
-    } else {
-      formulaDiv.innerHTML = `\\[
+      } else {
+        formulaDiv.innerHTML = `\\[
         \\begin{cases}
         \\dot{x}(t) = f(x(t), u(t)) \\\\
         y(t) = h(x(t), u(t))
         \\end{cases}
       \\]`;
-    }
-    
-    MathJax.typesetPromise([formulaDiv]);
-  }
+      }
 
-  document.getElementById('domainSelect').addEventListener('change', aggiornaFormulaSistema);
-  window.addEventListener('DOMContentLoaded', aggiornaFormulaSistema);
-</script>
+      MathJax.typesetPromise([formulaDiv]);
+    }
+
+    document.getElementById('domainSelect').addEventListener('change', aggiornaFormulaSistema);
+    window.addEventListener('DOMContentLoaded', aggiornaFormulaSistema);
+  </script>
 </body>
+
 </html>

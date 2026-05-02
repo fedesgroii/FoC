@@ -9,6 +9,82 @@
   <link rel="stylesheet" href="/static/style.css">
   <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
   <style>
+    :root {
+      --kb-bg: rgba(15, 23, 42, 0.9);
+      --key-bg: rgba(255, 255, 255, 0.1);
+      --key-hover: rgba(255, 255, 255, 0.2);
+      --accent-blue: #38bdf8;
+      --accent-purple: #a855f7;
+      --text-main: #f8fafc;
+    }
+
+    .math-keyboard {
+      position: fixed;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 600px;
+      background: var(--kb-bg);
+      backdrop-filter: blur(15px);
+      border-top: 1px solid rgba(255,255,255,0.1);
+      border-radius: 20px 20px 0 0;
+      padding: 15px;
+      box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
+      z-index: 2000;
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .math-keyboard.hidden { transform: translate(-50%, 100%); }
+
+    .keyboard-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      color: var(--text-main);
+    }
+
+    .keyboard-row { display: flex; gap: 5px; margin-bottom: 5px; justify-content: center; }
+
+    .math-key {
+      flex: 1;
+      height: 40px;
+      border: none;
+      border-radius: 8px;
+      background: var(--key-bg);
+      color: var(--text-main);
+      font-size: 0.95rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .math-key:hover { background: var(--key-hover); }
+    .math-key.fn { color: var(--accent-blue); }
+    .math-key.var { color: var(--accent-purple); font-style: italic; }
+    .math-key.op { background: rgba(56, 189, 248, 0.1); color: var(--accent-blue); }
+    .math-key.ctrl { background: rgba(239, 68, 68, 0.1); color: #f87171; }
+    .math-key.wide { flex: 2; }
+    
+    .kb-toggle {
+      background: var(--accent-blue);
+      color: white;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 2px 8px;
+      cursor: pointer;
+      margin-left: 5px;
+      font-size: 16px;
+      vertical-align: middle;
+      transition: all 0.3s ease;
+    }
+    
+    .kb-toggle.inactive {
+      background: #6c757d;
+      opacity: 0.7;
+    }
     .delta-row {
       display: flex;
       align-items: center;
@@ -92,7 +168,8 @@
       <h4>Equazione</h4>
       <span style="font-size: 20px; margin: 0 10px;">\( y(t) = \)</span>
       <input id="equationInput" type="text" placeholder="es. d(t-1)*c1+d(t)*c2"
-        style="width: 350px; font-size: 18px; text-align: center; padding: 5px;">
+        style="width: 350px; font-size: 18px; text-align: center; padding: 5px;" readonly>
+      <button class="kb-toggle" onclick="toggleKeyboardMode()" title="Attiva/Disattiva tastiera matematica">⌨️</button>
     </div>
 
     <div style="margin-top: 30px; text-align: center;">
@@ -107,6 +184,59 @@
       </main>
     </div>
 
+    <!-- Struttura Tastiera -->
+    <div id="math-keyboard" class="math-keyboard hidden">
+      <div class="keyboard-header">
+        <span style="font-weight: bold; margin-left: 10px;">Tastiera Matematica</span>
+        <button onclick="toggleKeyboard()" class="btn btn-sm btn-outline-danger">Chiudi</button>
+      </div>
+      
+      <div class="keyboard-body">
+        <div class="keyboard-row">
+          <button class="math-key fn" onclick="insertMath('d(')">d(t)</button>
+          <button class="math-key fn" onclick="insertMath('exp(')">eˣ</button>
+          <button class="math-key fn" onclick="insertMath('log(')">ln</button>
+          <button class="math-key fn" onclick="insertMath('sqrt(')">√</button>
+          <button class="math-key var" onclick="insertMath('t')">t</button>
+        </div>
+        <div class="keyboard-row">
+          <button class="math-key var" onclick="insertMath('c1')">c₁</button>
+          <button class="math-key var" onclick="insertMath('c2')">c₂</button>
+          <button class="math-key var" onclick="insertMath('c3')">c₃</button>
+          <button class="math-key var" onclick="insertMath('c4')">c₄</button>
+        </div>
+        <div class="keyboard-row">
+          <button class="math-key num" onclick="insertMath('7')">7</button>
+          <button class="math-key num" onclick="insertMath('8')">8</button>
+          <button class="math-key num" onclick="insertMath('9')">9</button>
+          <button class="math-key op" onclick="insertMath('/')">÷</button>
+          <button class="math-key op" onclick="insertMath('^')">xʸ</button>
+          <button class="math-key ctrl" onclick="backspace()">⌫</button>
+        </div>
+        <div class="keyboard-row">
+          <button class="math-key num" onclick="insertMath('4')">4</button>
+          <button class="math-key num" onclick="insertMath('5')">5</button>
+          <button class="math-key num" onclick="insertMath('6')">6</button>
+          <button class="math-key op" onclick="insertMath('*')">×</button>
+          <button class="math-key op" onclick="insertMath('(')">(</button>
+          <button class="math-key op" onclick="insertMath(')')">)</button>
+        </div>
+        <div class="keyboard-row">
+          <button class="math-key num" onclick="insertMath('1')">1</button>
+          <button class="math-key num" onclick="insertMath('2')">2</button>
+          <button class="math-key num" onclick="insertMath('3')">3</button>
+          <button class="math-key op" onclick="insertMath('-')">−</button>
+          <button class="math-key op" onclick="insertMath('+')">+</button>
+          <button class="math-key num" onclick="insertMath('0')">0</button>
+        </div>
+        <div class="keyboard-row">
+          <button class="math-key num" onclick="insertMath('.')">.</button>
+          <button class="math-key ctrl wide" onclick="clearInput()">CANC</button>
+          <button class="math-key op wide" onclick="calcolaSistema(); toggleKeyboard();">RISOLVI</button>
+        </div>
+      </div>
+    </div>
+
     <script>
       let deltaCounter = 0;
 
@@ -119,12 +249,20 @@
 
         row.innerHTML = `
           <span>Espressione: d(</span>
-          <input type="text" class="delta-input time-expr" value="${timeExpr}" placeholder="es. t-1">
+          <input type="text" class="delta-input time-expr" value="${timeExpr}" placeholder="es. t-1" ${isKeyboardActive ? 'readonly' : ''}>
           <span>)</span>
           <span style="margin-left: 20px;">Attiva (vale 1) a: t =</span>
           <input type="number" class="delta-input active-at" value="${activeAt}">
           <button class="remove-btn" onclick="removeDeltaRow(${deltaCounter})" style="margin-left: 10px;">X</button>
         `;
+
+        // Aggiungi listener per la tastiera
+        row.querySelector('.time-expr').addEventListener('focus', function() {
+          if (isKeyboardActive) {
+            activeInput = this;
+            document.getElementById('math-keyboard').classList.remove('hidden');
+          }
+        });
 
         container.appendChild(row);
       }
@@ -254,6 +392,78 @@
             output.innerHTML = `<p style="color:red; text-align:center;">${err.message || "Errore sconosciuto"}</p>`;
           });
       }
+  
+      // --- LOGICA TASTIERA ---
+      let isKeyboardActive = true;
+      let activeInput = null;
+
+      function toggleKeyboardMode() {
+        isKeyboardActive = !isKeyboardActive;
+        const keyboard = document.getElementById('math-keyboard');
+        const allInputs = document.querySelectorAll('input[type="text"]');
+        const toggleBtns = document.querySelectorAll('.kb-toggle');
+
+        if (isKeyboardActive) {
+          allInputs.forEach(input => input.setAttribute('readonly', true));
+          toggleBtns.forEach(btn => btn.classList.remove('inactive'));
+        } else {
+          allInputs.forEach(input => input.removeAttribute('readonly'));
+          toggleBtns.forEach(btn => btn.classList.add('inactive'));
+          keyboard.classList.add('hidden');
+          if (activeInput) activeInput.focus();
+        }
+      }
+
+      function insertMath(val) {
+        if (!isKeyboardActive || !activeInput) return;
+        let start = activeInput.selectionStart;
+        let end = activeInput.selectionEnd;
+        let text = activeInput.value;
+        let insertion = val;
+        let cursorOffset = 0;
+
+        if (val === '^') {
+          insertion = '^()';
+          cursorOffset = -1;
+        } else if (val.endsWith('(')) {
+          insertion = val + ')';
+          cursorOffset = -1;
+        }
+
+        activeInput.value = text.substring(0, start) + insertion + text.substring(end);
+        const newPos = start + insertion.length + cursorOffset;
+        activeInput.setSelectionRange(newPos, newPos);
+        activeInput.focus();
+      }
+
+      function backspace() {
+        if (!activeInput) return;
+        let start = activeInput.selectionStart;
+        if (start > 0) {
+          activeInput.value = activeInput.value.substring(0, start - 1) + activeInput.value.substring(start);
+          activeInput.setSelectionRange(start - 1, start - 1);
+        }
+        activeInput.focus();
+      }
+
+      function clearInput() {
+        if (!activeInput) return;
+        activeInput.value = "";
+        activeInput.focus();
+      }
+
+      function toggleKeyboard() {
+        // Per il tasto "Chiudi"
+        document.getElementById('math-keyboard').classList.add('hidden');
+      }
+
+      // Listener per input equazione
+      document.getElementById("equationInput").addEventListener("focus", function() {
+        if (isKeyboardActive) {
+          activeInput = this;
+          document.getElementById('math-keyboard').classList.remove('hidden');
+        }
+      });
     </script>
 </body>
 
