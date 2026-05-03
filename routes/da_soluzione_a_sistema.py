@@ -97,13 +97,15 @@ def api_da_soluzione_a_sistema():
         time_domain_str = "Tempo Continuo (R)" if time_type == 'continuous' else "Tempo Discreto (Z)"
         latex_steps.append({
             "title": f"Soluzione Inserita - {time_domain_str}",
-            "content": f"y({time_var_name}) = {to_latex(y_expr)}"
+            "content": f"y({time_var_name}) = {to_latex(y_expr)}",
+            "overflow": True
         })
 
         # 1. Ordine n
         latex_steps.append({
             "title": "Ordine del sistema n",
-            "content": f"n = {n} \\quad \\text{{(Costanti: }} {', '.join(constants_str)} \\text{{)}}"
+            "content": f"n = {n} \\quad \\text{{(Costanti: }} {', '.join(constants_str)} \\text{{)}}",
+            "overflow": True
         })
 
         # 2. Generazione Equazioni e Derivate/Incrementi
@@ -123,7 +125,8 @@ def api_da_soluzione_a_sistema():
             
         latex_steps.append({
             "title": "Equazioni" if time_type == 'continuous' else "Incrementi",
-            "content": r"\begin{aligned} " + " \\\\ ".join(eqs_latex) + r" \end{aligned}"
+            "content": r"\begin{aligned} " + " \\\\ ".join(eqs_latex) + r" \end{aligned}",
+            "overflow": True
         })
 
         # 3. Sistema in forma matriciale
@@ -155,7 +158,8 @@ def api_da_soluzione_a_sistema():
         
         latex_steps.append({
             "title": "Sistema in forma matriciale",
-            "content": fix_latex_y_symbols(step3_content, time_type, n)
+            "content": fix_latex_y_symbols(step3_content, time_type, n),
+            "overflow": True
         })
 
         # 4. Calcolo del determinante
@@ -171,7 +175,8 @@ def api_da_soluzione_a_sistema():
             "content": (
                 r"\det(A) = " + to_latex(det_A) + r" \\ " +
                 r"\textcolor{" + color + r"}{" + det_msg + r"}"
-            )
+            ),
+            "overflow": True
         })
         
         if det_is_zero:
@@ -192,8 +197,9 @@ def api_da_soluzione_a_sistema():
             r"&\text{Matrice aggiunta: } \mathrm{Adj}(A) = \mathrm{Cof}(A)^T = \\ &" + to_latex(adj_A) + r"\\[2em]" +
             r"&A^{-1} = \frac{1}{\det(A)} \cdot \mathrm{Adj}(A) = \\ &" + to_latex(A_inv) +
             r"\end{align*}"
-    )
-})
+            ),
+            "overflow": True
+        })
 
 
 
@@ -216,14 +222,16 @@ def api_da_soluzione_a_sistema():
         
         latex_steps.append({
             "title": "Calcolo delle costanti (Moltiplicazione)",
-            "content": fix_latex_y_symbols(multiplication_str, time_type, n)
+            "content": fix_latex_y_symbols(multiplication_str, time_type, n),
+            "overflow": True
         })
 
         latex_steps.append({
             "title": "Risultato Vettore Costanti",
             "content": (
                 to_latex(c_syms_vec) + r" = " + to_latex(c_vector)
-            )
+            ),
+            "overflow": True
         })
         
         sol_dict = {}
@@ -243,7 +251,8 @@ def api_da_soluzione_a_sistema():
                 r"\begin{align*}" + "\n" +
                 " \\\\[2.5em] ".join([f"&{s}" for s in sol_latex]) + "\n" +
                 r"\end{align*}"
-            )
+            ),
+            "overflow": True
         })
 
         # 8. Equazione finale
@@ -296,7 +305,8 @@ def api_da_soluzione_a_sistema():
         
         latex_steps.append({
             "title": "Variabili di stato introdotte",
-            "content": r"\begin{aligned} " + " \\ \\ \\ ".join(state_vars) + r" \end{aligned}"
+            "content": r"\begin{aligned} " + " \\ \\ \\ ".join(state_vars) + r" \end{aligned}",
+            "overflow": True
         })
 
         # 10. Matrici Finali
@@ -364,9 +374,9 @@ def api_da_soluzione_a_sistema():
         """
         
         if u_term != 0:
-            html_content += f"<div style='text-align:center; margin-top: 20px; padding: 15px; background: #e7f3ff; border-radius: 8px; color: #004085; font-weight: 500;'>Ingresso calcolato: \\( u({time_var_name}) = {to_latex(u_term)} \\)</div>"
+            html_content += f"<div style='text-align:center; margin-top: 20px; padding: 15px; background: #e7f3ff; border-radius: 8px; color: #004085; font-weight: 500; overflow-x: auto;'>Ingresso calcolato: \\( u({time_var_name}) = {to_latex(u_term)} \\)</div>"
         else:
-            html_content += f"<div style='text-align:center; margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; color: #6c757d; font-style: italic;'>Sistema autonomo (ingresso nullo)</div>"
+            html_content += f"<div style='text-align:center; margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; color: #6c757d; font-style: italic; overflow-x: auto;'>Sistema autonomo (ingresso nullo)</div>"
 
         latex_steps.append({
             "title": "Rappresentazione in Spazio di Stato (Forma Compagna)",

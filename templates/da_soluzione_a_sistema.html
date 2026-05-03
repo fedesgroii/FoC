@@ -260,7 +260,8 @@
               if (res.latex && Array.isArray(res.latex)) {
                 let stepCounter = 0;
                 res.latex.forEach((step) => {
-                  let contentHtml = step.is_html ? step.content : `<p class="centered-math">\\[${step.content}\\]</p>`;
+                  const containerClass = step.overflow ? 'math-overflow' : 'centered-math';
+                  let contentHtml = step.is_html ? step.content : `<div class="${containerClass}">\\[${step.content}\\]</div>`;
                   output.innerHTML += `
                 <p class="step-title"><b>${stepCounter++})</b> ${step.title}</p>
                 ${contentHtml}
