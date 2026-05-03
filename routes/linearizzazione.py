@@ -4,7 +4,7 @@ import re
 from sympy import Matrix, symbols, simplify, sympify, Eq, solve, nsolve
 from ast import literal_eval
 from sympy.parsing.sympy_parser import parse_expr
-from .utils import transformations, sostituisci_pedici, formatta_x_e
+from .utils import transformations, sostituisci_pedici, formatta_x_e, parse_frazioni_complete
 
 linearizzazione_bp = Blueprint("linearizzazione", __name__)
 
@@ -41,6 +41,7 @@ def linearizzazione():
                 eq = re.sub(r'\(t\)', '', eq)
                 
                 eq_modificata = sostituisci_pedici(eq)
+                eq_modificata = parse_frazioni_complete(eq_modificata)
                 local_dict = {f'x{i+1}': x[i] for i in range(numero_equazioni)}
                 if numero_equazioni == 1:
                     local_dict['x'] = x[0]
@@ -268,6 +269,7 @@ def linearizzazione():
                     eq = re.sub(r'\(t\)', '', eq)
 
                     eq_modificata = sostituisci_pedici(eq)
+                    eq_modificata = parse_frazioni_complete(eq_modificata)
                     local_dict = {f'x{i+1}': x[i] for i in range(numero_equazioni)}
                     if numero_equazioni == 1:
                         local_dict['x'] = x[0]
@@ -285,6 +287,7 @@ def linearizzazione():
                 h_uscita = re.sub(r'\(t\)', '', h_uscita)
 
                 h_uscita_mod = sostituisci_pedici(h_uscita)
+                h_uscita_mod = parse_frazioni_complete(h_uscita_mod)
                 local_dict = {f'x{i+1}': x[i] for i in range(numero_equazioni)}
                 if numero_equazioni == 1:
                     local_dict['x'] = x[0]

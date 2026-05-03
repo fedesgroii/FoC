@@ -98,3 +98,91 @@ def formatta_x_e(v) -> str:
 
     except Exception:
         return sp.latex(v)
+
+
+def parse_frazioni_complete(expr_str: str) -> str:
+    """
+    Preprocessing delle frazioni per gestire denominatori composti senza parentesi.
+    Esempio: 1/x2+1 -> 1/(x2+1)
+    Esempio: 1/x + 1/y -> 1/x + 1/y (resta invariato)
+    
+    Regola: il denominatore di una frazione '/' si estende fino alla fine del blocco
+    additivo. Si ferma se incontra un'altra frazione allo stesso livello di parentesi.
+    Se il denominatore inizia già con una parentesi, si ferma alla chiusura della stessa.
+    """
+    if '/' not in expr_str:
+        return expr_str
+
+    res = ""
+    i = 0
+    n = len(expr_str)
+    
+    while i < n:
+        if expr_str[i] == '/':
+            # Trovata una frazione. Identifichiamo il denominatore.
+            j = i + 1
+            # Saltiamo eventuali spazi
+            while j < n and expr_str[j].isspace():
+                j += 1
+            
+            if j < n and expr_str[j] == '(':
+                # Se il denominatore inizia con '(', cerchiamo solo la sua chiusura
+                start_den = j
+                level = 1
+                j += 1
+                while j < n and level > 0:
+                    if expr_str[j] == '(': level += 1
+                    elif expr_str[j] == ')': level -= 1
+                    j += 1
+                # Il denominatore è già completo e parentesizzato
+                den = expr_str[i+1:j]
+                res += f"/{den}"
+            else:
+                # Altrimenti applichiamo la logica greedy
+                start_den = i + 1
+                j = start_den
+                level = 0
+                while j < n:
+                    char = expr_str[j]
+                    if char == '(': level += 1
+                    elif char == ')':
+                        if level == 0: break
+                        level -= 1
+                    elif char == '/' and level == 0:
+                        break
+                    elif char in ('+', '-') and level == 0:
+                        # Regola degli spazi: se l'operatore è preceduto da uno spazio,
+                        # lo consideriamo un separatore di termini e non parte del denominatore.
+                        if j > start_den and expr_str[j-1].isspace():
+                            break
+                            
+                        # Verifica greedy: se dopo c'è un'altra frazione, questo è un separatore.
+                        has_fraction_after = False
+                        next_level = 0
+                        for k in range(j + 1, n):
+                            next_char = expr_str[k]
+                            if next_char == '(': next_level += 1
+                            elif next_char == ')':
+                                if next_level == 0: break
+                                next_level -= 1
+                            elif next_char == '/' and next_level == 0:
+                                has_fraction_after = True
+                                break
+                            elif next_char in ('+', '-') and next_level == 0:
+                                break
+                        if has_fraction_after:
+                            break
+                    j += 1
+                
+                den = expr_str[start_den:j]
+                den_stripped = den.strip()
+                if ('+' in den or '-' in den) and not (den_stripped.startswith('(') and den_stripped.endswith(')')):
+                    res += f"/({den})"
+                else:
+                    res += f"/{den}"
+            i = j
+        else:
+            res += expr_str[i]
+            i += 1
+            
+    return res
