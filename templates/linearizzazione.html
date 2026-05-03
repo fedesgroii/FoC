@@ -375,22 +375,22 @@
         let val = document.getElementById(`cell_A_${i}_0`).value.trim() || '0';
         val = val.replace(/\*/g, ''); // Rimuove gli asterischi per visualizzazione implicita
         if (isDiscrete) {
-          eqs.push(`x_{${i + 1}}(t+1) &= ${val}`);
+          eqs.push(`x_{${i + 1}}(t+1) = ${val}`);
         } else {
-          eqs.push(`\\dot{x}_{${i + 1}}(t) &= ${val}`);
+          eqs.push(`\\dot{x}_{${i + 1}}(t) = ${val}`);
         }
       }
       const h = document.getElementById('equazioneUscita').value.trim() || '0';
       const eqsLatex = eqs.map(e => e).join(' \\\\ ');
-      const hLatex = `y(t) &= ${h}`;
+      const hLatex = `y(t) = ${h}`;
       const sistema = `
         <p class="step-title"><b>0)</b> Sistema inserito:</p>
         <p class="centered-math">\\[
           \\left\\{
-          \\begin{aligned}
+          \\begin{gathered}
             ${eqsLatex} \\\\
             ${hLatex}
-          \\end{aligned}
+          \\end{gathered}
           \\right.
         \\]
         </p>
