@@ -365,6 +365,23 @@
         });
     }
 
+    function formatRawToLatex(str) {
+      if (!str) return '0';
+      let res = str.trim();
+      // 1. Sostituisce x_1, x_2... con x_{1}, x_{2}...
+      res = res.replace(/x_(\d+)/g, 'x_{$1}');
+      res = res.replace(/x_\{(\d+)\}/g, 'x_{$1}'); // Gestisce x_{1} già presenti
+      
+      // 2. Sostituisce ^(n) con ^{n}
+      res = res.replace(/\^(\d+)/g, '^{$1}'); // x^2 -> x^{2}
+      res = res.replace(/\^\(([^)]+)\)/g, '^{$1}'); // x^(2) -> x^{2}
+      
+      // 3. Rimuove asterischi per visualizzazione implicita
+      res = res.replace(/\*/g, '');
+      
+      return res;
+    }
+
     function mostraSistemaInserito() {
       const dominio = document.getElementById('domainSelect').value;
       const isDiscrete = dominio === 'typeDiscreto';
@@ -372,17 +389,19 @@
       const size = parseInt(document.getElementById('matrixSize').value);
       const eqs = [];
       for (let i = 0; i < size; i++) {
-        let val = document.getElementById(`cell_A_${i}_0`).value.trim() || '0';
-        val = val.replace(/\*/g, ''); // Rimuove gli asterischi per visualizzazione implicita
+        let val = document.getElementById(`cell_A_${i}_0`).value;
+        let valLatex = formatRawToLatex(val);
+        
         if (isDiscrete) {
-          eqs.push(`x_{${i + 1}}(t+1) = ${val}`);
+          eqs.push(`x_{${i + 1}}(t+1) = ${valLatex}`);
         } else {
-          eqs.push(`\\dot{x}_{${i + 1}}(t) = ${val}`);
+          eqs.push(`\\dot{x}_{${i + 1}}(t) = ${valLatex}`);
         }
       }
-      const h = document.getElementById('equazioneUscita').value.trim() || '0';
+      const h = document.getElementById('equazioneUscita').value;
+      const hLatex = `y(t) = ${formatRawToLatex(h)}`;
+      
       const eqsLatex = eqs.map(e => e).join(' \\\\ ');
-      const hLatex = `y(t) = ${h}`;
       const sistema = `
         <p class="step-title"><b>0)</b> Sistema inserito:</p>
         <p class="centered-math">\\[
