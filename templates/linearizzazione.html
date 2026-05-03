@@ -404,10 +404,13 @@
 
       let stepsHtml = "";
       if (Array.isArray(res.latex)) {
-        stepsHtml = res.latex.map((step, idx) => `
-          <p class="step-title"><b>${idx + 1})</b> ${step.title}</p>
-          <p class="centered-math">\\[${step.content}\\]</p>
-        `).join('');
+        stepsHtml = res.latex.map((step, idx) => {
+          const containerClass = step.overflow ? 'math-overflow' : 'centered-math';
+          return `
+            <p class="step-title"><b>${idx + 1})</b> ${step.title}</p>
+            <div class="${containerClass}">\\[${step.content}\\]</div>
+          `;
+        }).join('');
       }
 
       out.innerHTML += stepsHtml;

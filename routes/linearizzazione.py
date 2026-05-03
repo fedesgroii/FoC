@@ -228,7 +228,8 @@ def linearizzazione():
 
             latex_steps.append({
                 "title": f"Punto di equilibrio {idx + 1}:",
-                "content": descrizione_latex
+                "content": descrizione_latex,
+                "overflow": True
             })
 
         # Verifica se ci sono soluzioni reali
