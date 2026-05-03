@@ -213,11 +213,11 @@ def linearizzazione():
 
             # costruisci dizionario di sostituzioni per x_i → c_i
             subs_dict = { x[j]: sp.Symbol(f"c_{j+1}") for j in range(numero_equazioni) }
+            # Rappresentazione come vettore colonna per evitare overflow orizzontale
+            xe_vector = sp.Matrix([v.subs(subs_dict) for v in sol.values()])
             descrizione_latex = (
                 descrizione_dominio
-                + r"\mathbf{x}_e = \left("
-                + ", ".join(formatta_x_e(v.subs(subs_dict)) for v in sol.values())
-                + r"\right)"
+                + r"\mathbf{x}_e = " + matrix_to_latex(xe_vector)
             )
 
             # Rileva tutti i simboli c_i anche dentro espressioni complesse
@@ -293,8 +293,14 @@ def linearizzazione():
                 C = Matrix([[diff(h_orig, x_var) for x_var in x]]).subs(punto_eq_subs).applyfunc(sp.simplify)
                 D = Matrix([[diff(h_orig, u)]]).subs(punto_eq_subs).applyfunc(sp.simplify)
 
+                # Stack verticale delle matrici per gestire meglio l'overflow su schermi piccoli
                 contenuto_matrici = (
-                    r"A = " + matrix_to_latex(A) + r",\quad B = " + matrix_to_latex(B) + r" \\ " + r"C = " + matrix_to_latex(C) + r",\quad D = " + matrix_to_latex(D)
+                    r"\begin{aligned} "
+                    r"A &= " + matrix_to_latex(A) + r" \\ "
+                    r"B &= " + matrix_to_latex(B) + r" \\ "
+                    r"C &= " + matrix_to_latex(C) + r" \\ "
+                    r"D &= " + matrix_to_latex(D) +
+                    r"\end{aligned}"
                 )
 
                 # Usa lo stesso subs_dict di sopra per sostituire x_i → c_i
