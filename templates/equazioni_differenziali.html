@@ -1,13 +1,131 @@
 <!DOCTYPE html>
 <html lang="it">
+
 <head>
   <meta charset="UTF-8">
   <title>Equazioni Differenziali</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css">
+  <style>
+    :root {
+      --kb-bg: rgba(15, 23, 42, 0.9);
+      --key-bg: rgba(255, 255, 255, 0.1);
+      --key-hover: rgba(255, 255, 255, 0.2);
+      --accent-blue: #38bdf8;
+      --accent-purple: #a855f7;
+      --text-main: #f8fafc;
+    }
+
+    /* Stili tastiera */
+    .math-keyboard {
+      position: fixed;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 800px;
+      background: var(--kb-bg);
+      backdrop-filter: blur(15px);
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px 20px 0 0;
+      padding: 15px;
+      box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
+      z-index: 2000;
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .math-keyboard.hidden {
+      transform: translate(-50%, 100%);
+    }
+
+    .keyboard-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      color: var(--text-main);
+      padding: 0 5px;
+    }
+
+    .keyboard-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+      justify-content: center;
+    }
+
+    .math-key {
+      flex: 1;
+      height: 48px;
+      border: none;
+      border-radius: 8px;
+      background: var(--key-bg);
+      color: var(--text-main);
+      font-size: 1.1rem;
+      cursor: pointer;
+      transition: all 0.1s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .math-key:hover {
+      background: var(--key-hover);
+    }
+
+    .math-key.fn {
+      color: var(--accent-blue);
+    }
+
+    .math-key.var {
+      color: var(--accent-purple);
+      font-style: italic;
+    }
+
+    .math-key.op {
+      background: rgba(56, 189, 248, 0.1);
+      color: var(--accent-blue);
+    }
+
+    .math-key.ctrl {
+      background: rgba(239, 68, 68, 0.1);
+      color: #f87171;
+    }
+
+    .math-key.wide {
+      flex: 2;
+    }
+
+    .kb-toggle {
+      background: var(--accent-blue);
+      color: white;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 5px 10px;
+      cursor: pointer;
+      margin-left: 5px;
+      font-size: 18px;
+      transition: all 0.3s ease;
+    }
+
+    .kb-toggle.inactive {
+      background: #6c757d;
+      opacity: 0.7;
+    }
+  </style>
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true
+      }
+    };
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 </head>
+
 <body>
   <!-- ► Sidebar ◄ -->
   <div id="sidebar-placeholder"></div>
@@ -55,51 +173,148 @@
           <label for="eqInput" style="display: block; font-weight: 600; margin-bottom: 8px;">
             Equazione differenziale:
           </label>
-          <input id="eqInput" type="text"
-            placeholder="es. y' = x*y, y'' + y = 0, y' + y = exp(x)"
-            style="width: 420px; max-width: 90%; font-size: 18px; padding: 10px; text-align: center; border-radius: 6px;">
-          <div style="font-size: 12px; color: #aaa; margin-top: 6px;">
+          <div style="display: flex; justify-content: center; align-items: center;">
+            <input id="eqInput" type="text" class="math-input" placeholder="es. y' = x*y, y'' + y = 0, y' + y = exp(x)"
+              style="width: 420px; max-width: 90%; font-size: 18px; padding: 10px; text-align: center; border-radius: 6px;"
+              autocomplete="off" readonly onchange="onEqInputChanged()">
+            <button id="main-toggle" class="kb-toggle" onclick="toggleKeyboardMode()"
+              title="Attiva/Disattiva tastiera matematica">⌨️</button>
+          </div>
+
+          <!-- NUOVA CHECKBOX -->
+          <div
+            style="margin-top: 15px; background: rgba(56, 189, 248, 0.05); padding: 10px; border-radius: 8px; border: 1px solid rgba(56, 189, 248, 0.2); display: inline-block;">
+            <label
+              style="cursor: pointer; display: flex; align-items: center; gap: 8px; color: var(--text-main); font-size: 14px;">
+              <input type="checkbox" id="genericConditions" checked onchange="toggleConditions()">
+              <strong>Usa condizioni iniziali generiche</strong>
+            </label>
+            <div style="font-size: 11px; color: #aaa; margin-top: 4px; text-align: left;">
+              Se spuntato, le costanti saranno espresse in funzione di \( y_0, y_1, \dots \)
+            </div>
+          </div>
+
+          <div style="font-size: 12px; color: #aaa; margin-top: 12px;">
             Usa <code>y'</code> per \( y' \), <code>y''</code> per \( y'' \).
-            Funzioni: <code>sin(x)</code>, <code>cos(x)</code>, <code>exp(x)</code>, <code>ln(x)</code>, <code>sqrt(x)</code>.
-            Potenze: <code>x^2</code> oppure <code>x**2</code>.
+            Funzioni: <code>sin(x)</code>, <code>cos(x)</code>, <code>exp(x)</code>.
           </div>
         </div>
 
-        <!-- Condizioni Iniziali -->
-        <div style="margin-top: 20px; border-top: 1px dashed #555; padding-top: 18px;">
+        <!-- Condizioni Iniziali (Controllate dal toggle) -->
+        <div id="initialConditionsSection"
+          style="margin-top: 20px; border-top: 1px dashed #555; padding-top: 18px; display: none;">
           <label style="display: block; font-weight: 600; margin-bottom: 12px;">
-            Condizioni iniziali (opzionali – Problema di Cauchy):
+            Condizioni iniziali (Problema di Cauchy):
           </label>
           <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; align-items: center;">
 
-            <div style="display: flex; align-items: center; padding: 5px 10px; border-radius: 5px; border: 1px solid #555;">
+            <!-- x0 sempre visibile -->
+            <div id="x0Field"
+              style="display: flex; align-items: center; padding: 5px 10px; border-radius: 5px; border: 1px solid #555;">
               <label for="ic_x0" style="margin-right: 6px; font-weight: 500;">\( x_0 = \)</label>
-              <input id="ic_x0" type="text" placeholder="0"
-                style="width: 60px; border: none; outline: none; text-align: center; font-size: 16px;">
+              <input id="ic_x0" type="text" class="math-input" placeholder="0"
+                style="width: 60px; border: none; outline: none; text-align: center; font-size: 16px;" readonly>
             </div>
 
-            <div style="display: flex; align-items: center; padding: 5px 10px; border-radius: 5px; border: 1px solid #555;">
+            <!-- y0 sempre visibile -->
+            <div id="y0Field"
+              style="display: flex; align-items: center; padding: 5px 10px; border-radius: 5px; border: 1px solid #555;">
               <label for="ic_y0" style="margin-right: 6px; font-weight: 500;">\( y(x_0) = \)</label>
-              <input id="ic_y0" type="text" placeholder=""
-                style="width: 60px; border: none; outline: none; text-align: center; font-size: 16px;">
+              <input id="ic_y0" type="text" class="math-input" placeholder=""
+                style="width: 60px; border: none; outline: none; text-align: center; font-size: 16px;" readonly>
             </div>
 
-            <div style="display: flex; align-items: center; padding: 5px 10px; border-radius: 5px; border: 1px solid #555;">
+            <!-- dy0 (ordine >= 2) -->
+            <div id="dy0Field"
+              style="display: flex; align-items: center; padding: 5px 10px; border-radius: 5px; border: 1px solid #555;">
               <label for="ic_dy0" style="margin-right: 6px; font-weight: 500;">\( y'(x_0) = \)</label>
-              <input id="ic_dy0" type="text" placeholder=""
-                style="width: 60px; border: none; outline: none; text-align: center; font-size: 16px;">
+              <input id="ic_dy0" type="text" class="math-input" placeholder=""
+                style="width: 60px; border: none; outline: none; text-align: center; font-size: 16px;" readonly>
+            </div>
+
+            <!-- d2y0 (ordine >= 3) -->
+            <div id="d2y0Field"
+              style="display: none; align-items: center; padding: 5px 10px; border-radius: 5px; border: 1px solid #555;">
+              <label for="ic_d2y0" style="margin-right: 6px; font-weight: 500;">\( y''(x_0) = \)</label>
+              <input id="ic_d2y0" type="text" class="math-input" placeholder=""
+                style="width: 60px; border: none; outline: none; text-align: center; font-size: 16px;" readonly>
+            </div>
+
+            <!-- d3y0 (ordine >= 4) -->
+            <div id="d3y0Field"
+              style="display: none; align-items: center; padding: 5px 10px; border-radius: 5px; border: 1px solid #555;">
+              <label for="ic_d3y0" style="margin-right: 6px; font-weight: 500;">\( y'''(x_0) = \)</label>
+              <input id="ic_d3y0" type="text" class="math-input" placeholder=""
+                style="width: 60px; border: none; outline: none; text-align: center; font-size: 16px;" readonly>
             </div>
 
           </div>
-          <div style="font-size: 12px; color: #aaa; margin-top: 8px;">
+          <div id="condTooltip" style="font-size: 12px; color: #aaa; margin-top: 8px;">
             Compila solo se vuoi risolvere un problema di Cauchy. Per ODE del primo ordine basta \( y(x_0) \).
+          </div>
+        </div>
+      </div>
+
+      <!-- Struttura Tastiera -->
+      <div id="math-keyboard" class="math-keyboard hidden">
+        <div class="keyboard-header">
+          <span style="font-weight: bold;">Tastiera Matematica</span>
+          <button onclick="toggleKeyboard()" class="btn btn-sm btn-outline-danger">Chiudi</button>
+        </div>
+
+        <div class="keyboard-body">
+          <div class="keyboard-row">
+            <button class="math-key fn" onclick="insertMath('sin(')">sin</button>
+            <button class="math-key fn" onclick="insertMath('cos(')">cos</button>
+            <button class="math-key fn" onclick="insertMath('exp(')">eˣ</button>
+            <button class="math-key fn" onclick="insertMath('log(')">ln</button>
+            <button class="math-key fn" onclick="insertMath('sqrt(')">√</button>
+          </div>
+          <div class="keyboard-row">
+            <button class="math-key var" onclick="insertMath('y')">y</button>
+            <button class="math-key var" onclick="insertMath('y\'')">y'</button>
+            <button class="math-key var" onclick="insertMath('y\'\'')">y''</button>
+            <button class="math-key var" onclick="insertMath('x')">x</button>
+            <button class="math-key var" onclick="insertMath('t')">t</button>
+            <button class="math-key var" onclick="insertMath('=')">=</button>
+            <button class="math-key var" onclick="insertMath('d')">d</button>
+          </div>
+          <div class="keyboard-row">
+            <button class="math-key num" onclick="insertMath('7')">7</button>
+            <button class="math-key num" onclick="insertMath('8')">8</button>
+            <button class="math-key num" onclick="insertMath('9')">9</button>
+            <button class="math-key op" onclick="insertMath('/')">÷</button>
+            <button class="math-key op" onclick="insertMath('^')">xʸ</button>
+            <button class="math-key ctrl" onclick="backspace()">⌫</button>
+          </div>
+          <div class="keyboard-row">
+            <button class="math-key num" onclick="insertMath('4')">4</button>
+            <button class="math-key num" onclick="insertMath('5')">5</button>
+            <button class="math-key num" onclick="insertMath('6')">6</button>
+            <button class="math-key op" onclick="insertMath('*')">×</button>
+            <button class="math-key op" onclick="insertMath('(')">(</button>
+            <button class="math-key op" onclick="insertMath(')')">)</button>
+          </div>
+          <div class="keyboard-row">
+            <button class="math-key num" onclick="insertMath('1')">1</button>
+            <button class="math-key num" onclick="insertMath('2')">2</button>
+            <button class="math-key num" onclick="insertMath('3')">3</button>
+            <button class="math-key op" onclick="insertMath('-')">−</button>
+            <button class="math-key op" onclick="insertMath('+')">+</button>
+            <button class="math-key num" onclick="insertMath('0')">0</button>
+          </div>
+          <div class="keyboard-row">
+            <button class="math-key num" onclick="insertMath('.')">.</button>
+            <button class="math-key ctrl wide" onclick="clearInput()">CANC</button>
+            <button class="math-key op wide" onclick="calcolaSoluzione(); toggleKeyboard();">RISOLVI</button>
           </div>
         </div>
       </div>
 
       <!-- ► Bottoni ◄ -->
       <div style="margin-top: 25px; text-align: center; display: flex; justify-content: center; gap: 15px;">
-        <button class="btn btn-primary btn-lg" onclick="calcolaSoluzione()" style="padding: 10px 25px; font-weight: 600;">
+        <button class="btn btn-primary btn-lg" onclick="calcolaSoluzione()"
+          style="padding: 10px 25px; font-weight: 600;">
           Risolvi Equazione
         </button>
         <button class="btn btn-outline-secondary btn-lg" onclick="resetForm()" style="padding: 10px 25px;">
@@ -122,6 +337,8 @@
       document.getElementById("ic_x0").value = "";
       document.getElementById("ic_y0").value = "";
       document.getElementById("ic_dy0").value = "";
+      document.getElementById("ic_d2y0").value = "";
+      document.getElementById("ic_d3y0").value = "";
       document.getElementById("output").innerHTML =
         '<p style="text-align:center; color:#888; font-style:italic;">Nessuna equazione inserita...</p>';
     }
@@ -134,18 +351,21 @@
         return;
       }
 
+      const useGeneric = document.getElementById("genericConditions").checked;
       const x0 = document.getElementById("ic_x0").value.trim();
       const y0 = document.getElementById("ic_y0").value.trim();
       const dy0 = document.getElementById("ic_dy0").value.trim();
+      const d2y0 = document.getElementById("ic_d2y0").value.trim();
+      const d3y0 = document.getElementById("ic_d3y0").value.trim();
 
       // Mostra l'equazione inserita subito
       const out = document.getElementById('output');
       out.innerHTML = `
         <div style="margin-top: 10px; border-left: 4px solid #198754; padding-left: 15px;">
           <p class="step-title" style="color: #198754; font-weight: bold;">Problema da risolvere:</p>
-          <p class="centered-math" style="background: white; padding: 10px; border-radius: 5px;">
+          <div class="centered-math" style="background: white; padding: 10px; border-radius: 5px;">
             \\[${escapeForMathJax(eqRaw)}\\]
-          </p>
+          </div>
         </div>
       `;
       if (window.MathJax) MathJax.typesetPromise([out]);
@@ -156,69 +376,211 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           equazione: eqRaw,
+          generic_conditions: useGeneric,
           x0: x0,
           y0: y0,
-          dy0: dy0
+          dy0: dy0,
+          d2y0: d2y0,
+          d3y0: d3y0
         })
       })
-      .then(async r => {
-        const ct = r.headers.get("content-type");
-        if (!r.ok || !ct || !ct.includes("application/json")) {
-          const text = await r.text();
-          throw new Error(`Risposta non valida dal server: ${text.slice(0, 200)}`);
-        }
-        return r.json();
-      })
-      .then(res => {
-        const out = document.getElementById('output');
-        if (!res.success) {
-          out.innerHTML += `
+        .then(async r => {
+          const ct = r.headers.get("content-type");
+          if (!r.ok || !ct || !ct.includes("application/json")) {
+            const text = await r.text();
+            throw new Error(`Risposta non valida dal server: ${text.slice(0, 200)}`);
+          }
+          return r.json();
+        })
+        .then(res => {
+          const out = document.getElementById('output');
+          if (!res.success) {
+            out.innerHTML += `
             <div class="alert alert-danger mt-3">
               <strong>Errore:</strong> ${res.error || "Errore sconosciuto"}
             </div>`;
-          if (window.MathJax) MathJax.typesetPromise([out]);
-          return;
-        }
+            if (window.MathJax) MathJax.typesetPromise([out]);
+            return;
+          }
 
-        if (res.latex && Array.isArray(res.latex)) {
-          let stepNum = 1;
-          res.latex.forEach(step => {
-            // Controlla se è la soluzione finale (boxed) o il passaggio di input
-            let borderColor = "#0d6efd";
-            let titleColor = "#0d6efd";
+          if (res.latex && Array.isArray(res.latex)) {
+            let stepNum = 1;
+            // Ricostruiamo l'HTML partendo dal blocco iniziale "Problema da risolvere"
+            // per evitare di leggere out.innerHTML che è già stato modificato da MathJax
+            let fullHtml = `
+              <div style="margin-top: 10px; border-left: 4px solid #198754; padding-left: 15px;">
+                <p class="step-title" style="color: #198754; font-weight: bold;">Problema da risolvere:</p>
+                <div class="centered-math" style="background: white; padding: 10px; border-radius: 5px;">
+                  \\[${escapeForMathJax(eqRaw)}\\]
+                </div>
+              </div>
+            `;
 
-            if (step.title.toLowerCase().includes("soluzione particolare") ||
-                step.title.toLowerCase().includes("soluzione generale")) {
-              borderColor = "#198754";
-              titleColor = "#198754";
-            }
-            if (step.title.toLowerCase().includes("input")) {
-              borderColor = "#6c757d";
-              titleColor = "#6c757d";
-            }
+            res.latex.forEach(step => {
+              let borderColor = "#0d6efd";
+              let titleColor = "#0d6efd";
 
-            out.innerHTML += `
+              if (step.title.toLowerCase().includes("soluzione particolare") ||
+                step.title.toLowerCase().includes("soluzione generale") ||
+                step.title.toLowerCase().includes("separazione")) {
+                borderColor = "#198754";
+                titleColor = "#198754";
+              }
+              if (step.title.toLowerCase().includes("input")) {
+                borderColor = "#6c757d";
+                titleColor = "#6c757d";
+              }
+
+              fullHtml += `
               <div style="margin-top: 15px; border-left: 4px solid ${borderColor}; padding-left: 15px;">
                 <p class="step-title" style="color: ${titleColor}; font-weight: bold;">
                   ${stepNum++}. ${step.title}
                 </p>
-                <p class="centered-math" style="background: white; padding: 10px; border-radius: 5px; overflow-x: auto;">
+                <div class="centered-math" style="background: white; padding: 10px; border-radius: 5px; overflow-x: auto;">
                   \\[${step.content}\\]
-                </p>
+                </div>
               </div>`;
-          });
-        }
+            });
+            out.innerHTML = fullHtml;
+          }
 
-        if (window.MathJax) MathJax.typesetPromise([out]);
-      })
-      .catch(err => {
-        const out = document.getElementById('output');
-        out.innerHTML += `
+          if (window.MathJax) {
+            MathJax.typesetPromise([out]).catch((err) => console.log('MathJax error:', err));
+          }
+        })
+        .catch(err => {
+          const out = document.getElementById('output');
+          out.innerHTML += `
           <div class="alert alert-danger mt-3">
             <strong>Errore:</strong> ${err.message || "Errore sconosciuto"}
           </div>`;
-      });
+        });
     }
+
+    // --- LOGICA TASTIERA ---
+    let isKeyboardActive = true;
+    let lastFocusedInput = document.getElementById("eqInput");
+
+    function toggleKeyboardMode() {
+      isKeyboardActive = !isKeyboardActive;
+      const keyboard = document.getElementById('math-keyboard');
+      const inputs = document.querySelectorAll(".math-input");
+      const toggleBtn = document.getElementById("main-toggle");
+
+      if (isKeyboardActive) {
+        inputs.forEach(i => i.setAttribute('readonly', true));
+        toggleBtn.classList.remove('inactive');
+        if (Array.from(inputs).includes(document.activeElement)) {
+          keyboard.classList.remove('hidden');
+        }
+      } else {
+        inputs.forEach(i => i.removeAttribute('readonly'));
+        keyboard.classList.add('hidden');
+        toggleBtn.classList.add('inactive');
+        lastFocusedInput.focus();
+      }
+    }
+
+    function insertMath(val) {
+      if (!isKeyboardActive) return;
+      const input = lastFocusedInput;
+      let start = input.selectionStart;
+      let end = input.selectionEnd;
+      let text = input.value;
+      let insertion = val;
+      let cursorOffset = 0;
+
+      if (val === '^') {
+        insertion = '^()';
+        cursorOffset = -1;
+      } else if (val.endsWith('(')) {
+        insertion = val + ')';
+        cursorOffset = -1;
+      }
+
+      input.value = text.substring(0, start) + insertion + text.substring(end);
+      const newPos = start + insertion.length + cursorOffset;
+      input.setSelectionRange(newPos, newPos);
+      input.focus();
+
+      // Update fields if eqInput changed
+      if (input.id === "eqInput") {
+        onEqInputChanged();
+      }
+    }
+
+    function toggleConditions() {
+      const generic = document.getElementById("genericConditions").checked;
+      const section = document.getElementById("initialConditionsSection");
+      section.style.display = generic ? "none" : "block";
+      if (!generic) {
+        updateConditionFields();
+      }
+    }
+
+    function getEquationOrder() {
+      const eq = document.getElementById("eqInput").value;
+      if (!eq) return 1;
+      // Controllo apici (y', y'', y''', y'''')
+      const primes = (eq.match(/'/g) || []).length;
+      if (primes >= 4) return 4;
+      if (primes === 3) return 3;
+      if (primes === 2) return 2;
+
+      // Controllo notazione d^n y / dx^n
+      if (eq.includes("d⁴") || eq.includes("d4")) return 4;
+      if (eq.includes("d³") || eq.includes("d3")) return 3;
+      if (eq.includes("d²") || eq.includes("d2")) return 2;
+
+      return 1;
+    }
+
+    function updateConditionFields() {
+      const order = getEquationOrder();
+      document.getElementById("dy0Field").style.display = (order >= 2) ? "flex" : "none";
+      document.getElementById("d2y0Field").style.display = (order >= 3) ? "flex" : "none";
+      document.getElementById("d3y0Field").style.display = (order >= 4) ? "flex" : "none";
+
+      const tooltip = document.getElementById("condTooltip");
+      if (order === 1) tooltip.innerText = "Per ODE del primo ordine basta y(x₀).";
+      else if (order === 2) tooltip.innerText = "Per ODE del secondo ordine servono y(x₀) e y'(x₀).";
+      else tooltip.innerText = `Per ODE di ordine ${order} servono le derivate fino a y^(${order - 1})(x₀).`;
+    }
+
+    function onEqInputChanged() {
+      if (!document.getElementById("genericConditions").checked) {
+        updateConditionFields();
+      }
+    }
+
+    function backspace() {
+      const input = lastFocusedInput;
+      let start = input.selectionStart;
+      if (start > 0) {
+        input.value = input.value.substring(0, start - 1) + input.value.substring(start);
+        input.setSelectionRange(start - 1, start - 1);
+      }
+      input.focus();
+    }
+
+    function clearInput() {
+      lastFocusedInput.value = "";
+      lastFocusedInput.focus();
+    }
+
+    function toggleKeyboard() {
+      document.getElementById('math-keyboard').classList.add('hidden');
+    }
+
+    // Gestione focus multipli
+    document.querySelectorAll(".math-input").forEach(input => {
+      input.addEventListener("focus", function () {
+        lastFocusedInput = this;
+        if (isKeyboardActive) {
+          document.getElementById('math-keyboard').classList.remove('hidden');
+        }
+      });
+    });
 
     // Utility: sanitize input for MathJax preview (matching backend behavior)
     function escapeForMathJax(s) {
@@ -228,43 +590,47 @@
       r = r.replace(/\*\*/g, '^');
       r = r.replace(/·/g, '\\cdot ');
       r = r.replace(/\*/g, '\\cdot ');
-      
+
       // Apici e pedici unicode
       r = r.replace(/⁰/g, '^{0}').replace(/¹/g, '^{1}').replace(/²/g, '^{2}').replace(/³/g, '^{3}');
       r = r.replace(/⁴/g, '^{4}').replace(/⁵/g, '^{5}').replace(/⁶/g, '^{6}').replace(/⁷/g, '^{7}');
       r = r.replace(/⁸/g, '^{8}').replace(/⁹/g, '^{9}');
-      
+
       r = r.replace(/₀/g, '_{0}').replace(/₁/g, '_{1}').replace(/₂/g, '_{2}').replace(/₃/g, '_{3}');
       r = r.replace(/₄/g, '_{4}').replace(/₅/g, '_{5}').replace(/₆/g, '_{6}').replace(/⷇/g, '_{7}');
       r = r.replace(/₈/g, '_{8}').replace(/₉/g, '_{9}');
-      
+
       // Frazioni a/b -> \frac{a}{b}
       r = r.replace(/(?<![a-zA-Z\d])(\d+)\s*\/\s*(\d+)/g, '\\frac{$1}{$2}');
-      
+
       // Funzioni
       r = r.replace(/\bsin\b/g, '\\sin');
       r = r.replace(/\bcos\b/g, '\\cos');
       r = r.replace(/\btan\b/g, '\\tan');
-      
+
       r = r.replace(/\bexp\s*\(([^)]+)\)/g, 'e^{$1}');
       r = r.replace(/\be\s*\^\s*\(([^)]+)\)/g, 'e^{$1}');
       r = r.replace(/\be\s*\^\s*([a-zA-Z0-9_\-]+)/g, 'e^{$1}');
-      
+
       // Parentesi adattive attorno alle frazioni
       r = r.replace(/\(\s*(\\frac{[^}]+}{[^}]+}[^)]*)\)/g, '\\left($1\\right)');
-      
+
       return r.trim();
     }
 
     // Invio con Enter
-    document.addEventListener('DOMContentLoaded', function() {
-      document.getElementById('eqInput').addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          calcolaSoluzione();
-        }
+    document.addEventListener('DOMContentLoaded', function () {
+      document.querySelectorAll(".math-input").forEach(input => {
+        input.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            calcolaSoluzione();
+            toggleKeyboard();
+          }
+        });
       });
     });
   </script>
 </body>
+
 </html>
