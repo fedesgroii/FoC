@@ -1,6 +1,7 @@
 """
 routes/equazioni_alle_differenze.py – Risolutore di equazioni alle differenze (recurrence relations).
 Supporta shift y(n+1), operatore differenza Δ e operatore shift E.
+Copia la logica di equazioni_differenziali.py.
 """
 from flask import Blueprint, request, jsonify
 import sympy as sp
@@ -21,29 +22,61 @@ def _log(msg):
     if DEBUG:
         print(f"[DIFF DEBUG] {msg}")
 
+def _normalize_constants(expr):
+    """Normalizza i nomi delle costanti in C_1, C_2, ... in ordine alfabetico."""
+    if expr is None:
+        return None
+    c_map = {}
+    found = _get_constants(expr)
+    for i, c in enumerate(found):
+        c_map[c] = symbols(f'C_{i+1}')
+    return simplify(expr.subs(c_map))
+
 # ═══════════════════ VARIABILE INDIPENDENTE ═══════════════════
 def _detect_var(testo):
+    """Rileva automaticamente la variabile indipendente (t, n, k o x)."""
     clean = re.sub(r'(sin|cos|tan|sqrt|exp|text|latex|log|ln)\b', '', testo)
-    if re.search(r'\bk\b', clean):
-        return 'k'
     if re.search(r'\bt\b', clean):
         return 't'
+    if re.search(r'\bn\b', clean):
+        return 'n'
+    if re.search(r'\bk\b', clean):
+        return 'k'
     return 'n'
+
+def _normalize_variables(testo, var_target):
+    """Normalizza le variabili indipendenti nella variabile target."""
+    vars_pos = ['n', 't', 'k', 'x']
+    for v in vars_pos:
+        if v != var_target:
+            testo = re.sub(rf'\b{v}\b', var_target, testo)
+    return testo
 
 def _get_symbols(var_name):
     v = symbols(var_name, integer=True)
     yf = Function('y')
     return v, yf, yf(v)
 
-# ═══════════════════ PREPROCESSING INPUT ═══════════════════
 def _normalize(testo):
     s = testo.strip()
     s = s.replace('\\Delta', 'Δ')
     s = s.replace('∘', ' ')
     s = s.replace('·', '*')
+    
+    # Rimuove spazi intorno all'esponente
+    s = re.sub(r'\s*\^\s*\(', '^(', s)
+    
+    # FIX: Gestione specifica operatori d, Δ, E con potenze numeriche e simboliche
+    s = re.sub(r'\b([dΔ])\s*\^?\s*\(?(\d+|[nkxtm])\)?', r'(\1)**\2', s)
+    s = re.sub(r'\bE\s*\^?\s*\(?(\d+|[nkxtm])\)?', r'(E)**\2', s)
+    
+    # Sostituzione residua ^ -> **
     s = s.replace('^', '**')
     
-    # Unicode superscript esteso
+    # d residui (senza potenza) diventano Δ
+    s = s.replace('d', 'Δ')
+    
+    # Unicode superscript
     s = s.replace('⁰', '**0').replace('¹', '**1').replace('²', '**2')
     s = s.replace('³', '**3').replace('⁴', '**4').replace('⁵', '**5')
     s = s.replace('⁶', '**6').replace('⁷', '**7').replace('⁸', '**8').replace('⁹', '**9')
@@ -58,16 +91,12 @@ def _normalize(testo):
     s = re.sub(r'y_([a-zA-Z0-9]+)', r'y(\1)', s)
     s = re.sub(r'y\[([^\]]+)\]', r'y(\1)', s)
     
-    # Aggiunge y_n mancante dopo un operatore (es. Δ² senza parentesi o ∘)
+    # Aggiunge y mancante dopo un operatore (Δ o E)
     if 'y' not in s:
         if '=' in s:
             lhs, rhs = s.split('=', 1)
             lhs = lhs.strip()
-            if lhs and lhs[-1].isdigit():
-                lhs += '*y'
-            elif lhs and lhs[-1] == ')':
-                lhs += '*y'
-            elif lhs and lhs[-1] in ('Δ', 'E'):
+            if lhs and (lhs[-1].isdigit() or lhs[-1] == ')' or lhs[-1] in ('Δ', 'E', 'd')):
                 lhs += '*y'
             s = f"{lhs} = {rhs}"
         else:
@@ -78,7 +107,7 @@ def _normalize(testo):
 def _is_operator_form(lhs):
     if "y(" in lhs:
         return False
-    if re.search(r'\b[ΔE]\b', lhs) or re.search(r'[ΔE]\s*\*\*', lhs) or re.search(r'[ΔE]\s*\(', lhs):
+    if re.search(r'[ΔE]', lhs):
         return True
     return False
 
@@ -96,7 +125,6 @@ def _prepare_op_str(s):
 
 def _expand_operator(lhs_str, rhs_str, var_sym):
     op_str = _prepare_op_str(lhs_str)
-    # Sostituisco Δ con (E - 1) prima di parsare
     op_str = op_str.replace('Δ', '(E-1)')
     
     E_sym = symbols('E')
@@ -109,6 +137,11 @@ def _expand_operator(lhs_str, rhs_str, var_sym):
     op_expanded = expand(op_expr)
     poly = Poly(op_expanded, E_sym)
     degree = poly.degree()
+    
+    # FIX: Controllo esplicito se il polinomio è vuoto
+    if degree < 0:
+        raise ValueError("L'operatore non contiene E: impossibile espandere in shift.")
+    
     yf = Function('y')
     
     lhs_eq = sp.Integer(0)
@@ -134,15 +167,18 @@ def _parse_rhs(rhs_str, var_sym):
 
 # ═══════════════════ SANITIZZAZIONE LATEX ═══════════════════
 def sanitize_latex(s):
+    # FIX: Spostata la sostituzione di ** -> ^ dopo le altre elaborazioni
     s = s.replace('Δ', r'\Delta ')
     s = s.replace('∘', r'\circ ')
-    s = s.replace('**', '^')
     s = s.replace('·', r'\cdot ')
     s = s.replace('*', r'\cdot ')
     
     s = s.replace('⁰', '^{0}').replace('¹', '^{1}').replace('²', '^{2}').replace('³', '^{3}')
     s = s.replace('⁴', '^{4}').replace('⁵', '^{5}').replace('⁶', '^{6}').replace('⁷', '^{7}')
     s = s.replace('⁸', '^{8}').replace('⁹', '^{9}')
+    
+    # FIX: Conversione ** -> ^ solo alla fine, dopo aver gestito tutto il resto
+    s = re.sub(r'([a-zA-Z0-9)\]])\*\*([a-zA-Z0-9(])', r'\1^\2', s)
     
     s = re.sub(r'(?<![a-zA-Z\d])(\d+)\s*/\s*(\d+)', r'\\frac{\1}{\2}', s)
     
@@ -167,59 +203,32 @@ def _parse_standard(testo, var_sym):
     if '=' not in testo:
         raise ValueError("L'equazione deve contenere '='.")
     lhs_str, rhs_str = testo.split('=', 1)
-    lhs_expr = _parse_ode_side(lhs_str.strip(), var_sym)
-    rhs_expr = _parse_ode_side(rhs_str.strip(), var_sym)
+    lhs_expr = _parse_side(lhs_str.strip(), var_sym)
+    rhs_expr = _parse_side(rhs_str.strip(), var_sym)
     eq = Eq(lhs_expr, rhs_expr)
     
-    # Determino l'ordine
-    yf = Function('y')
     shifts = []
-    for term in eq.lhs.free_symbols | eq.rhs.free_symbols | {eq.lhs, eq.rhs}:
-        pass # free_symbols non becca le function calls facilmente
-    
-    # Cerchiamo gli shift testualmente prima di un'analisi AST completa
-    shifts_found = re.findall(r'y\(' + str(var_sym) + r'\s*\+\s*(\d+)\)', testo)
-    
-    max_shift = 0
-    min_shift = 0
-    
-    shift_ints = [int(s) for s in shifts_found if s]
-    if re.search(r'y\(' + str(var_sym) + r'\)', testo):
-        shift_ints.append(0)
-        
-    if shift_ints:
-        max_shift = max(shift_ints)
-        min_shift = min(shift_ints)
-    else:
-        # Analisi fallback usando i termini
-        eq_exp = expand(eq.lhs - eq.rhs)
-        for term in eq_exp.args if isinstance(eq_exp, sp.Add) else [eq_exp]:
-            for arg in term.args:
-                if isinstance(arg, Function('y')):
-                    arg_in = arg.args[0]
-                    if arg_in == var_sym:
-                        shifts.append(0)
-                    else:
-                        c = sp.simplify(arg_in - var_sym)
-                        if c.is_number:
-                            shifts.append(int(c))
-        if shifts:
-            max_shift = max(shifts)
-            min_shift = min(shifts)
+    def find_shifts(expr):
+        if isinstance(expr, Function('y')):
+            arg = expr.args[0]
+            if arg == var_sym: shifts.append(0)
+            else:
+                diff = simplify(arg - var_sym)
+                if diff.is_number: shifts.append(int(diff))
+        elif hasattr(expr, 'args'):
+            for a in expr.args: find_shifts(a)
             
-    ordine = max_shift - min_shift
-    if ordine == 0:
-        ordine = 1 # minimo fallback
-        
-    return eq, ordine, latex(eq)
+    find_shifts(eq.lhs - eq.rhs)
+    if not shifts: ordine = 1
+    else: ordine = max(shifts) - min(shifts)
+    
+    return eq, max(1, ordine), latex(eq)
 
-def _parse_ode_side(s, var_sym):
+def _parse_side(s, var_sym):
     if not s.strip(): return sp.Integer(0)
     var_name = str(var_sym)
     yf = Function('y')
-    y_var = yf(var_sym)
     
-    # Protegge y(...)
     s = re.sub(r'\by\(([^)]+)\)', r'__YFUNC__(\1)', s)
     s = re.sub(r'(?<![a-zA-Z_\d])(\d+)\s*/\s*(\d+)(?![a-zA-Z_\d\(])', r'Rational(\1,\2)', s)
     s = re.sub(r'(\d)(__YFUNC__)', r'\1*\2', s)
@@ -237,57 +246,47 @@ def parsifica_input(testo):
     testo_orig = testo.strip()
     var_name = _detect_var(testo_orig)
     var_sym = symbols(var_name, integer=True)
+    
+    testo_orig = _normalize_variables(testo_orig, var_name)
     testo_norm = _normalize(testo_orig)
     _log(f"Normalizzato: {testo_norm}")
+    
     latex_sanitized = sanitize_latex(testo_orig)
     
     if '=' not in testo_norm:
         raise ValueError("L'equazione deve contenere '='.")
     lhs_raw, rhs_raw = testo_norm.split('=', 1)
+    
     if _is_operator_form(lhs_raw):
         eq, ordine, latex_exp = _expand_operator(lhs_raw, rhs_raw, var_sym)
-        _log(f"Equazione espansa: {eq}")
         return eq, ordine, var_sym, latex_sanitized, latex_exp
     else:
         eq, ordine, latex_eq = _parse_standard(testo_norm, var_sym)
-        _log(f"Equazione standard: {eq}")
         return eq, ordine, var_sym, latex_sanitized, None
 
 # ═══════════════════ CLASSIFICAZIONE ═══════════════════
-def classifica_eq_alle_differenze(eq, y_sym, ordine, var_sym):
+def classifica_eq(eq, y_sym, ordine, var_sym):
     eq_exp = expand(eq.lhs - eq.rhs)
-    
-    # Controlla se a coefficienti costanti
-    is_constant_coeff = True
-    has_forcing_term = False
-    
+    is_constant = True
     for term in (eq_exp.args if isinstance(eq_exp, sp.Add) else [eq_exp]):
-        has_y = term.has(Function('y'))
-        if not has_y:
-            has_forcing_term = True
-        else:
-            # Estrai coefficiente della y
-            term_c = term
-            for factor in (term.args if isinstance(term, sp.Mul) else [term]):
-                if factor.has(Function('y')):
-                    term_c = term / factor
+        if term.has(Function('y')):
+            coeff = term
+            for f in (term.args if isinstance(term, sp.Mul) else [term]):
+                if f.has(Function('y')):
+                    coeff = term / f
                     break
-            if term_c.has(var_sym):
-                is_constant_coeff = False
-                
-    homog = "omogenea" if not has_forcing_term else "non omogenea"
-    coeff = "a coefficienti costanti" if is_constant_coeff else "a coefficienti variabili"
+            if coeff.has(var_sym):
+                is_constant = False
+                break
     
     tipo_key = f"{ordine}th_linear"
-    if is_constant_coeff:
-        tipo_key += "_constant_coeff"
-    if has_forcing_term:
-        tipo_key += "_nonhomogeneous"
-    else:
-        tipo_key += "_homogeneous"
-        
-    nome_str = "del primo ordine" if ordine == 1 else "del secondo ordine" if ordine == 2 else f"di ordine {ordine}"
-    nome = f"Equazione lineare {nome_str} {coeff} {homog}"
+    if is_constant: tipo_key += "_constant_coeff"
+    if eq.rhs == 0: tipo_key += "_homogeneous"
+    else: tipo_key += "_nonhomogeneous"
+    
+    nome = f"Equazione alle differenze lineare di ordine {ordine}"
+    if is_constant: nome += " a coefficienti costanti"
+    else: nome += " a coefficienti variabili"
     
     return tipo_key, nome
 
@@ -295,397 +294,424 @@ def classifica_eq_alle_differenze(eq, y_sym, ordine, var_sym):
 def _step(title, content):
     return {"title": title, "content": content}
 
-def _verifica_soluzione(eq, sol, var_sym, ordine):
-    """Verifica che la soluzione soddisfi l'equazione."""
-    y_sol = sol
-    lhs_eval = eq.lhs
-    rhs_eval = eq.rhs
-    
-    yf = Function('y')
-    # Sostituiamo ogni shift y(n+k) con la sol(n+k)
-    # Cerchiamo tutti i termini y(n+k) in eq
-    shifts_to_sub = {}
-    for term in eq.lhs.free_symbols | eq.rhs.free_symbols | {eq.lhs, eq.rhs}:
-        pass
-        
-    # Un metodo robusto: scansionare l'espressione con match
-    def replacer(expr):
-        if isinstance(expr, Function('y')):
-            arg = expr.args[0]
-            # sostituisci var_sym con arg in y_sol
-            return y_sol.subs(var_sym, arg)
-        elif expr.args:
-            return expr.func(*[replacer(a) for a in expr.args])
-        return expr
-        
-    lhs_eval = replacer(eq.lhs)
-    rhs_eval = replacer(eq.rhs)
-    
-    diff_simplified = simplify(lhs_eval - rhs_eval)
-    return diff_simplified == 0, diff_simplified
+def _get_constants(expr):
+    """Estrae le costanti di integrazione (C0, C1, C_1, C₁, ecc.) ordinate per indice."""
+    consts = []
+    for s in expr.free_symbols:
+        name = str(s)
+        # FIX: Supporto per pedici unicode (C₁, C₂, ...)
+        name_clean = name.replace('₀','0').replace('₁','1').replace('₂','2').replace('₃','3').replace('₄','4').replace('₅','5').replace('₆','6').replace('₇','7').replace('₈','8').replace('₉','9')
+        match = re.match(r'^C_?(\d+)$', name_clean)
+        if match:
+            consts.append((s, int(match.group(1))))
+    return [c[0] for c in sorted(consts, key=lambda x: x[1])]
 
-def genera_passaggi(eq, tipo_key, ordine, var_sym, sol_gen, sol_part=None, cond=None):
+def _solve_for_constants_generic(sol_complete, order, var_sym):
+    """Calcola le costanti in funzione di y0, y1, ... con passaggi espliciti su più righe."""
+    # FIX: Usa _get_constants unificata invece di regex duplicata
+    consts = _get_constants(sol_complete)
+    if len(consts) < order:
+        _log(f"Fallimento: trovate solo {len(consts)} costanti per ordine {order}. Costanti rilevate: {consts}")
+        return {}, []
+    
+    steps = []
+    y_syms = [symbols(f'y_{i}') for i in range(order)]
+    eqs = []
+    
+    syst_latex = []
+    for i in range(order):
+        val_i = simplify(sol_complete.subs(var_sym, i).expand())
+        eqs.append(Eq(val_i, y_syms[i]))
+        syst_latex.append(rf"y({i}) = {latex(val_i)} = y_{{{i}}}")
+    
+    steps.append(_step("Sistema per le condizioni iniziali", 
+        r" \begin{cases} " + r" \\ ".join(syst_latex) + r" \end{cases} "))
+    
+    sol = solve(eqs, consts, dict=True)
+    if not sol: 
+        _log(f"Fallimento: il sistema per le condizioni iniziali non ha soluzione. Equazioni: {eqs}")
+        return {}, steps
+    
+    sol_dict = {k: simplify(v) for k, v in sol[0].items()}
+    sol_latex_lines = [f"{latex(c)} = {latex(sol_dict[c])}" for c in consts if c in sol_dict]
+    sol_latex = r" \\ ".join(sol_latex_lines)
+    
+    steps.append(_step("Costanti determinate", 
+        r"\text{Risolvendo il sistema:}" + r" \\ " + sol_latex))
+    
+    return sol_dict, steps
+
+def genera_passaggi(eq, tipo_key, ordine, var_sym, total_sol, sol_part_cauchy=None, cond=None):
+    """Genera i passaggi seguendo i 6 step pedagogici."""
     yf = Function('y')
     y_sym = yf(var_sym)
     v = str(var_sym)
     steps = []
-    
-    tipo_key, nome_tipo = classifica_eq_alle_differenze(eq, y_sym, ordine, var_sym)
-    steps.append(_step("Classificazione", rf"\text{{{nome_tipo}}}"))
-    
-    if 'constant_coeff' in tipo_key:
-        steps += _steps_coeff_costanti(eq, ordine, var_sym, y_sym, sol_gen)
-    else:
-        steps.append(_step("Metodo", r"\text{Risoluzione simbolica con SymPy}"))
-        
-    # Sostituzione formale di C0, C1 con C_1, C_2
-    sol_gen_clean = sol_gen
-    const_idx = 1
-    for sym in sol_gen.free_symbols:
-        if str(sym).startswith('C') and str(sym)[1:].isdigit():
-            sol_gen_clean = sol_gen_clean.subs(sym, symbols(f'C_{const_idx}'))
-            const_idx += 1
-            
-    steps.append(_step("Soluzione generale", rf"y_{{{v}}} = {latex(simplify(sol_gen_clean))}"))
-    
-    # Verifica
-    verificato, diff_val = _verifica_soluzione(eq, sol_gen, var_sym, ordine)
-    if verificato:
-        steps.append(_step("Verifica", rf"\text{{Sostituendo in equazione originale: }} L[y_{{{v}}}] = {latex(eq.rhs)} \quad \text{{✅ Verificato}}"))
-    else:
-        steps.append(_step("Verifica", rf"\text{{Controllo fallito analiticamente}}"))
-        
-    if sol_part is not None and cond:
-        parts = []
-        for i in range(len(cond)):
-            if f'y{i}' in cond:
-                parts.append(rf"y_{{{latex(i)}}} = {latex(cond[f'y{i}'])}")
-        steps.append(_step("Condizioni iniziali", r", \quad ".join(parts)))
-        steps.append(_step("Soluzione particolare (Cauchy)", rf"\boxed{{y_{{{v}}} = {latex(simplify(sol_part))}}}"))
-        
-    return steps
 
-def _steps_coeff_costanti(eq, ordine, var_sym, y_sym, sol_gen):
-    steps = []
-    eq_expr = eq.lhs - eq.rhs
-    v = str(var_sym)
+    _, nome_tipo = classifica_eq(eq, y_sym, ordine, var_sym)
+    steps.append(_step("Classificazione", rf"\text{{{nome_tipo}}}"))
+
+    # ── Separazione robusta y_h / y_p ────────────────────────────────────────
+    consts_in_sol = _get_constants(total_sol)
+    if eq.rhs == 0:
+        y_h = total_sol
+        y_p = sp.Integer(0)
+    elif consts_in_sol:
+        y_p = simplify(total_sol.subs({c: 0 for c in consts_in_sol}))
+        y_h = simplify(total_sol - y_p)
+    else:
+        _log("Nessuna costante trovata in total_sol.")
+        y_h = sp.Integer(0)
+        y_p = total_sol
+
+    if 'constant_coeff' in tipo_key:
+        # Passo 2: soluzione omogenea con radici
+        new_steps, _ = _steps_coeff_costanti(eq, ordine, var_sym, y_sym, total_sol)
+        steps += new_steps
+
+        # Passo 3: soluzione particolare
+        if eq.rhs != 0:
+            _, radici_dict = _build_char_poly(eq, ordine, var_sym)
+            yp_analitica, steps_yp, is_resonant = _trova_yp_analitica(eq, var_sym, radici_dict)
+            steps += steps_yp
+            if not is_resonant and yp_analitica is not None:
+                y_p_display = yp_analitica
+            else:
+                y_p_display = y_p
+            if y_p_display != 0:
+                steps.append(_step("Passo 3 – Soluzione particolare verificata",
+                    rf"y_p({v}) = {latex(simplify(y_p_display))}"))
+        else:
+            y_p_display = sp.Integer(0)
+    else:
+        steps.append(_step("Metodo", r"\text{Risoluzione simbolica con SymPy (coeff. variabili)}"))
+        y_p_display = y_p
+
+    # Passo 4: soluzione generale
+    sol_gen_esplicita = simplify(y_h + y_p)
+    steps.append(_step("Passo 4 – Soluzione generale",
+        rf"y_{{g,no}}({v}) = y_{{g,o}}({v}) + y_p({v}) "\
+        rf"= \underbrace{{{latex(y_h)}}}_{{y_{{g,o}}}} + \underbrace{{{latex(y_p)}}}_{{y_p}}"))
+    steps.append(_step("Soluzione generale (box)",
+        rf"\boxed{{y_{{g,no}}({v}) = {latex(sol_gen_esplicita)}}}"))
+
+    # Passo 5: condizioni iniziali
+    if cond and sol_part_cauchy is not None:
+        parts = [rf"y({i}) = {latex(cond[f'y{i}'])}" for i in range(ordine) if f'y{i}' in cond]
+        steps.append(_step("Passo 5 – Condizioni iniziali", r", \quad ".join(parts)))
+        steps.append(_step("Passo 5 – Soluzione del Problema di Cauchy",
+            rf"\boxed{{y({v}) = {latex(simplify(sol_part_cauchy))}}}"))
+    elif not cond:
+        sol_dict, generic_steps = _solve_for_constants_generic(total_sol, ordine, var_sym)
+        if sol_dict:
+            steps.append(_step("Passo 5 – Imposizione condizioni iniziali generiche",
+                rf"\text{{Si impone }} y(i) = y_i \text{{ per }} i = 0,\ldots,{ordine-1}"))
+            steps.extend(generic_steps)
+            sol_gen_sub = simplify(total_sol.subs(sol_dict))
+            steps.append(_step("Passo 5 – Soluzione in funzione dei valori iniziali",
+                rf"\boxed{{y({v}) = {latex(sol_gen_sub)}}}"))
+            legenda = [rf"y_{{{i}}} = y({i})" for i in range(ordine)]
+            steps.append(_step("Legenda", rf"\text{{Dove: }} {', '.join(legenda)}"))
+
+    # Passo 6: risposta libera e forzata
+    if cond and sol_part_cauchy is not None:
+        # Risposta libera: soluzione con ingresso nullo
+        try:
+            eq_hom = Eq(eq.lhs, 0)
+            sol_libera = rsolve(eq_hom, y_sym, {yf(i): cond[f'y{i}'] for i in range(ordine) if f'y{i}' in cond})
+            sol_libera = simplify(sol_libera) if sol_libera else None
+        except Exception:
+            sol_libera = None
+        # Risposta forzata: condizioni iniziali nulle
+        try:
+            ics_zero = {yf(i): sp.Integer(0) for i in range(ordine)}
+            sol_forzata = rsolve(eq, y_sym, ics_zero)
+            sol_forzata = simplify(sol_forzata) if sol_forzata else None
+        except Exception:
+            sol_forzata = None
+
+        passo6_parts = []
+        if sol_libera is not None:
+            passo6_parts.append(rf"y_l({v}) = {latex(sol_libera)} \quad \text{{(risposta libera: condiz. iniz., ingresso nullo)}}")
+        if sol_forzata is not None:
+            passo6_parts.append(rf"y_f({v}) = {latex(sol_forzata)} \quad \text{{(risposta forzata: condiz. iniz. nulle)}}")
+        if passo6_parts:
+            steps.append(_step("Passo 6 – Risposta libera e forzata",
+                r" \\ ".join(passo6_parts)))
+
+    return steps, sol_gen_esplicita
+
+def _build_char_poly(eq, ordine, var_sym):
+    """Costruisce il polinomio caratteristico e restituisce (char_poly, radici_dict)."""
     r_sym = symbols('r')
-    
-    # Estraiamo l'equazione caratteristica
-    yf = Function('y')
-    
-    # Troviamo lo shift minimo per normalizzare l'equazione caratteristica
-    eq_exp = expand(eq_expr)
+    eq_expr = expand(eq.lhs - eq.rhs)
     shifts = []
     def find_shifts(expr):
         if isinstance(expr, Function('y')):
-            arg_in = expr.args[0]
-            if arg_in == var_sym:
-                shifts.append(0)
+            arg = expr.args[0]
+            if arg == var_sym: shifts.append(0)
             else:
-                c = sp.simplify(arg_in - var_sym)
-                if c.is_number:
-                    shifts.append(int(c))
-        elif expr.args:
+                d = simplify(arg - var_sym)
+                if d.is_number: shifts.append(int(d))
+        elif hasattr(expr, 'args'):
             for a in expr.args: find_shifts(a)
-    find_shifts(eq_exp)
-    min_shift = min(shifts) if shifts else 0
-    
+    find_shifts(eq_expr)
+    m = min(shifts) if shifts else 0
     coeffs = {}
-    def extract_coeffs(expr):
+    def get_c(expr):
         if isinstance(expr, sp.Add):
-            for term in expr.args: extract_coeffs(term)
+            for t in expr.args: get_c(t)
         else:
-            c, r = expr.as_coeff_Mul()
-            # r è y(n+k)
-            for factor in (r.args if isinstance(r, sp.Mul) else [r]):
-                if isinstance(factor, Function('y')):
-                    arg_in = factor.args[0]
-                    shift = sp.simplify(arg_in - var_sym)
-                    k = int(shift) if shift.is_number else 0
-                    coeffs[k - min_shift] = c * (expr / factor / c)
-                    break
-    extract_coeffs(eq_exp)
-    
-    char_poly = sum(coeffs.get(n, 0) * r_sym**n for n in range(ordine + 1))
-    char_poly = expand(char_poly)
-    steps.append(_step("Equazione caratteristica", rf"{latex(char_poly)} = 0"))
-    radici = solve(char_poly, r_sym)
-    rad_str = ", ".join([rf"r = {latex(r)}" for r in radici])
-    steps.append(_step("Radici", rad_str))
-    
-    # Soluzione omogenea
+            c, r2 = expr.as_coeff_Mul()
+            for f in (r2.args if isinstance(r2, sp.Mul) else [r2]):
+                if isinstance(f, Function('y')):
+                    s = int(simplify(f.args[0] - var_sym))
+                    coeffs[s - m] = c * (expr / f / c)
+    get_c(expand(eq.lhs))
+    max_shift = max(coeffs.keys()) if coeffs else ordine
+    char_poly = simplify(sum(coeffs.get(i, 0) * r_sym**i for i in range(max_shift + 1)))
+    radici_dict = sp.roots(char_poly, r_sym)
+    return char_poly, radici_dict
+
+
+def _trova_yp_analitica(eq, var_sym, radici_dict):
+    """Passo 3: soluzione particolare analitica con rilevamento risonanza.
+    Restituisce (y_p, steps_yp, is_resonant)."""
+    v = str(var_sym)
+    u = eq.rhs
+    steps_yp = []
+    if u == 0:
+        return sp.Integer(0), [], False
+
+    # Riconosce u(t) = A * b^t
+    b_val = None
+    A_coeff = None
     try:
-        sol_omogenea = rsolve(Eq(eq.lhs, 0), y_sym)
-        if sol_omogenea is None: sol_omogenea = sp.Integer(0)
-    except:
-        sol_omogenea = sp.Integer(0)
-        
-    radici_list = [simplify(r) for r in radici]
-    conteggio = Counter(radici_list)
-    
+        # Prova a identificare b come base esponenziale dominante
+        u_exp = expand(u)
+        # Caso semplice: u = c * b^t
+        if u_exp.is_Mul or u_exp.is_Pow or u_exp.is_Number or u_exp.is_Symbol:
+            as_pow = u_exp.rewrite(sp.Pow)
+            for atom in u_exp.atoms(sp.Pow):
+                if atom.args[1] == var_sym:
+                    b_val = atom.args[0]
+                    A_coeff = simplify(u_exp / atom)
+                    break
+            if b_val is None and u_exp.is_Number:
+                b_val = u_exp
+                A_coeff = sp.Integer(1)
+    except Exception:
+        pass
+
+    if b_val is not None:
+        # Valuta p(b)
+        r_sym = symbols('r')
+        char_poly, _ = _build_char_poly(eq, 0, var_sym)
+        p_b = char_poly.subs(r_sym, b_val)
+        p_b_simplified = simplify(p_b)
+
+        # Controlla risonanza: b è radice di p?
+        mol = radici_dict.get(b_val, 0)
+        if p_b_simplified != 0:
+            # CASO SENZA RISONANZA: y_p = A/p(b) * b^t
+            yp = simplify(A_coeff / p_b_simplified * b_val**var_sym)
+            steps_yp.append(_step("Passo 3 – Soluzione Particolare (senza risonanza)",
+                rf"u({v}) = {latex(u)}, \quad p(b) = p({latex(b_val)}) = {latex(p_b_simplified)} \neq 0 "\
+                rf"\\ y_p({v}) = \frac{{1}}{{p(b)}} \cdot u({v}) = \frac{{1}}{{{latex(p_b_simplified)}}} \cdot {latex(b_val)}^{{{v}}} = {latex(yp)}"))
+            return yp, steps_yp, False
+        else:
+            # CASO CON RISONANZA: moltiplica per t^m
+            steps_yp.append(_step("Passo 3 – Risonanza rilevata",
+                rf"b = {latex(b_val)} \text{{ è radice di }} p(\Delta) \text{{ con molteplicità }} m={mol}. "\
+                rf"\text{{Si pone }} y_p({v}) = \alpha \cdot {v}^{{{mol}}} \cdot {latex(b_val)}^{{{v}}}"))
+            alpha = symbols('alpha')
+            yp_ansatz = alpha * var_sym**mol * b_val**var_sym
+            return None, steps_yp, True  # segnala risonanza, usa rsolve
+
+    # Ingresso polinomiale generico: usa rsolve direttamente
+    steps_yp.append(_step("Passo 3 – Soluzione Particolare",
+        rf"u({v}) = {latex(u)} \text{{: forma non esponenziale pura, si usa il metodo di variazione dei parametri.}}"))
+    return None, steps_yp, False
+
+
+def _steps_coeff_costanti(eq, ordine, var_sym, y_sym, sol_gen):
+    """Passo 2: costruisce i passaggi per la soluzione omogenea con tabella dei modi."""
+    steps = []
+    v = str(var_sym)
+    r_sym = symbols('r')
+
+    char_poly, radici_dict = _build_char_poly(eq, ordine, var_sym)
+
+    # — Passo 1: forma operatoriale —
+    steps.append(_step("Passo 1 – Forma operatoriale",
+        rf"p(\Delta)\,y({v}) = {latex(eq.rhs)} \quad \text{{dove }} p(\Delta) = {latex(char_poly.subs(r_sym, symbols('Delta')))}"))
+
+    # — Passo 2a: polinomio caratteristico —
+    steps.append(_step("Passo 2 – Polinomio caratteristico", rf"p(r) = {latex(char_poly)} = 0"))
+
+    # — Passo 2b: radici e tabella modi —
+    rad_lines = []
+    for r_val, mol in radici_dict.items():
+        if sp.im(r_val) == 0:
+            if r_val == 0:
+                modo = rf"c_1 \delta_0({v})+\ldots" if mol > 1 else rf"c\,\delta_0({v})"
+            elif mol == 1:
+                modo = rf"c \cdot ({latex(r_val)})^{{{v}}}"
+            else:
+                modo = rf"(c_1 + c_2 {v} + \ldots + c_{{{mol}}} {v}^{{{mol-1}}})\,({latex(r_val)})^{{{v}}}"
+            tipo = "reale semplice" if mol == 1 else f"reale multipla (m={mol})"
+        else:
+            rho = simplify(Abs(r_val))
+            theta = simplify(sp.arg(r_val))
+            modo = rf"{latex(rho)}^{{{v}}}\,(c_1\cos({latex(theta)}\,{v}) + c_2\sin({latex(theta)}\,{v}))"
+            tipo = "complessa coniugata"
+        rad_lines.append(rf"r = {latex(r_val)} \;(\text{{{tipo}, molt.}} = {mol}) \;\Rightarrow\; {modo}")
+    steps.append(_step("Passo 2 – Radici e modi", r" \\ ".join(rad_lines)))
+
+    # — Stabilità —
+    stab = "asintoticamente stabile"
+    for r_val, mol in radici_dict.items():
+        rho_ev = Abs(r_val).evalf()
+        if rho_ev > 1: stab = "instabile"; break
+        if rho_ev == 1:
+            stab = "instabile" if mol > 1 else "marginalmente stabile"
+    steps.append(_step("Stabilità",
+        rf"\text{{Tutte le radici: }} |r_i| \Rightarrow \text{{sistema }} \mathbf{{{stab}}}. "\
+        rf"\text{{(stabile sse }} |r_i| < 1 \;\forall i\text{{)}}"))
+
+    # — Costruzione y_h in forma reale —
     termini = []
     c_idx = 1
-    
-    # Elabora radici
-    for r, molt in conteggio.items():
-        if sp.im(r) == 0:
-            for k in range(molt):
-                if k == 0:
-                    termini.append(rf"C_{{{c_idx}}} \left({latex(r)}\right)^{{{v}}}")
-                else:
-                    termini.append(rf"C_{{{c_idx}}} {v}^{{{k}}} \left({latex(r)}\right)^{{{v}}}")
+    processed_complex = set()
+    for r_val, mol in radici_dict.items():
+        if sp.im(r_val) == 0:
+            for k in range(mol):
+                term = r_val**var_sym
+                if k > 0: term *= var_sym**k
+                termini.append(symbols(f'C_{c_idx}') * term)
                 c_idx += 1
         else:
-            if r == sp.conjugate(r) or sp.im(r) < 0:
+            if r_val in processed_complex or sp.conjugate(r_val) in processed_complex:
                 continue
-            rho = sp.Abs(r)
-            theta = sp.arg(r)
-            for k in range(molt):
-                prefix = ""
-                if k > 0: prefix = rf"{v}^{{{k}}} "
-                termini.append(rf"{prefix} \left({latex(rho)}\right)^{{{v}}} \left(C_{{{c_idx}}} \cos({latex(theta)}{v}) + C_{{{c_idx+1}}} \sin({latex(theta)}{v})\right)")
+            rho = simplify(sp.Abs(r_val))
+            theta = simplify(sp.arg(r_val))
+            for k in range(mol):
+                prefix = simplify(rho**var_sym)
+                if k > 0: prefix *= var_sym**k
+                c1 = symbols(f'C_{c_idx}')
+                c2 = symbols(f'C_{c_idx+1}')
+                termini.append(prefix * (c1 * cos(theta * var_sym) + c2 * sin(theta * var_sym)))
                 c_idx += 2
-                
-    y_h_latex = " + ".join(termini).replace("+ -", "- ")
-    if y_h_latex:
-        steps.append(_step("Soluzione omogenea", rf"y_h({v}) = {y_h_latex}"))
-    else:
-        # Pulisco sol_omogenea
-        s_c = sol_omogenea
-        idx = 1
-        for s in s_c.free_symbols:
-            if str(s).startswith('C'):
-                s_c = s_c.subs(s, symbols(f'C_{idx}'))
-                idx += 1
-        steps.append(_step("Soluzione omogenea", rf"y_h({v}) = {latex(s_c)}"))
-        
-    f_t = eq.rhs
-    if f_t != 0 and not sp.simplify(f_t).is_zero:
-        steps.append(_step("Termine forzante", rf"f({v}) = {latex(f_t)}"))
-        
-        # Rilevamento risonanza
-        risonanza = False
-        termine_risonante = None
-        molteplicita_risonanza = 0
-        
-        f_t_expanded = sp.expand(f_t)
-        if isinstance(f_t_expanded, sp.Add):
-            f_terms = f_t_expanded.args
-        else:
-            f_terms = [f_t_expanded]
-            
-        for term in f_terms:
-            term_no_coeff = term.as_coeff_Mul()[1]
-            term_base = term_no_coeff
-            t_power = 0
-            if isinstance(term_no_coeff, sp.Mul):
-                for factor in term_no_coeff.args:
-                    if factor == var_sym or (isinstance(factor, sp.Pow) and factor.base == var_sym):
-                        if factor == var_sym:
-                            t_power = 1
-                        else:
-                            t_power = factor.exp
-                        term_base = term_no_coeff / (var_sym**t_power)
-                        break
-            
-            # Applica L_term a term_base
-            L_term = sp.Integer(0)
-            def apply_L(expr):
-                # operator su y
-                res = sp.Integer(0)
-                for k_s, c_s in coeffs.items():
-                    res += c_s * expr.subs(var_sym, var_sym + k_s)
-                return res
-            L_term = apply_L(term_base)
-            
-            if sp.simplify(L_term) == 0:
-                risonanza = True
-                termine_risonante = term_base
-                molteplicita_risonanza = t_power + 1
-                break
-                
-        if risonanza:
-            if molteplicita_risonanza > 1:
-                steps.append(_step("Risonanza rilevata", rf"\text{{Il termine }} {latex(termine_risonante)} \text{{ è soluzione dell'omogenea (molteplicità }} {molteplicita_risonanza}\text{{).}}"))
-            else:
-                steps.append(_step("Risonanza rilevata", rf"\text{{Il termine }} {latex(termine_risonante)} \text{{ è soluzione dell'omogenea.}}"))
-                
-        y_p = sp.simplify(sol_gen - sol_omogenea)
-        y_p_exp = sp.expand(y_p)
-        
-        if isinstance(y_p_exp, sp.Add):
-            yp_terms = y_p_exp.args
-        else:
-            yp_terms = [y_p_exp]
-            
-        syms_str = 'A B C D E F G H K L M N'
-        syms_abc = symbols(syms_str)
-        
-        forma_terms = []
-        yp_assumed = sp.Integer(0)
-        coeff_map = {}
-        
-        idx_sym = 0
-        for term in yp_terms:
-            coeff_val, symbolic_part = term.as_coeff_Mul()
-            if symbolic_part == 1:
-                S = syms_abc[idx_sym % len(syms_abc)]
-                forma_terms.append(rf"{S}")
-                yp_assumed += S
-                try: coeff_map[S] = float(coeff_val) if coeff_val.is_number else coeff_val
-                except: coeff_map[S] = coeff_val
-                idx_sym += 1
-            else:
-                S = syms_abc[idx_sym % len(syms_abc)]
-                forma_terms.append(rf"{S} \cdot {latex(symbolic_part)}")
-                yp_assumed += S * symbolic_part
-                try: coeff_map[S] = float(coeff_val) if coeff_val.is_number else coeff_val
-                except: coeff_map[S] = coeff_val
-                idx_sym += 1
-                
-        forma_latex = " + ".join(forma_terms).replace("+ -", "- ")
-        steps.append(_step("Forma ipotizzata", rf"y_p({v}) = {forma_latex}"))
-        
-        L_yp = sp.Integer(0)
-        for k_s, c_s in coeffs.items():
-            L_yp += c_s * yp_assumed.subs(var_sym, var_sym + k_s)
-            
-        L_yp_exp = sp.expand(L_yp)
-        steps.append(_step("Sostituzione nell'equazione", rf"L[y_p] = {latex(L_yp_exp)} = {latex(f_t)}"))
-        
-        if coeff_map:
-            coeff_sol_str = ", \quad ".join([rf"{S} = {latex(val)}" for S, val in coeff_map.items()])
-            steps.append(_step("Sistema risolvente", rf"\text{{Uguagliando i coefficienti si ottiene: }} {coeff_sol_str}"))
-            
-        steps.append(_step("Soluzione particolare", rf"y_p({v}) = {latex(y_p)}"))
-        
-    return steps
+            processed_complex.add(r_val)
+
+    y_h = sp.Add(*termini) if termini else sp.Integer(0)
+    steps.append(_step("Passo 2 – Soluzione omogenea",
+        rf"y_{{g,o}}({v}) = {latex(simplify(y_h))}"))
+    return steps, y_h
 
 # ═══════════════════ RISOLUTORE PRINCIPALE ═══════════════════
-def risolvi_eq_alle_differenze(input_utente, condizioni=None):
+def risolvi_eq_alle_differenze(input_utente, condizioni=None, use_generic=True):
     start_time = time.time()
     try:
         eq, ordine, var_sym, latex_input, latex_exp = parsifica_input(input_utente)
         yf = Function('y')
         y_sym = yf(var_sym)
-        tipo_key, nome_tipo = classifica_eq_alle_differenze(eq, y_sym, ordine, var_sym)
-        _log(f"Tipo rilevato: {tipo_key}")
+        tipo_key, nome_tipo = classifica_eq(eq, y_sym, ordine, var_sym)
         
-        soluzione = None
         ics = {}
         if condizioni:
-            for i in range(10):
+            for i in range(ordine + 1):
                 if f'y{i}' in condizioni:
                     ics[yf(i)] = condizioni[f'y{i}']
-                    
+        
+        soluzione_generale = None
         try:
-            if ics:
-                soluzione = rsolve(eq, y_sym, ics)
-                # se fallisce con ics, proviamo senza e sostituiamo manualmente
-                if soluzione is None:
-                    sol_gen_temp = rsolve(eq, y_sym)
-                    if sol_gen_temp is not None:
-                        soluzione = _cauchy_manuale(sol_gen_temp, condizioni, var_sym)
-            else:
-                soluzione = rsolve(eq, y_sym)
-                
+            soluzione_generale = rsolve(eq, y_sym)
         except Exception as e:
-            _log(f"rsolve failed: {e}")
-            raise ValueError(f"Impossibile risolvere: {e}")
+            _log(f"rsolve generale fallito: {e}")
             
-        if soluzione is None:
-            raise ValueError("Impossibile trovare una soluzione analitica per questa equazione alle differenze.")
+        if soluzione_generale is None: 
+            raise ValueError("Impossibile trovare la soluzione generale dell'equazione.")
             
-        _log(f"Soluzione: {soluzione}")
-        
-        # Determina sol_gen e sol_part
+        sol_part_cauchy = None
         if ics:
-            sol_part = soluzione
-            sol_gen = rsolve(eq, y_sym)
-        else:
-            sol_gen = soluzione
-            sol_part = None
-            
-        latex_steps = []
-        latex_steps.append(_step("Input ricevuto", latex_input))
-        if latex_exp:
-            latex_steps.append(_step("Equazione espansa", latex_exp))
-        latex_steps += genera_passaggi(eq, tipo_key, ordine, var_sym, sol_gen, sol_part, condizioni)
+            try:
+                sol_part_cauchy = rsolve(eq, y_sym, ics)
+            except Exception as e:
+                _log(f"rsolve particolare fallito: {e}")
         
+        total_sol = simplify(expand(soluzione_generale))
+
+        total_sol = _normalize_constants(total_sol)
+        sol_part_cauchy = _normalize_constants(sol_part_cauchy)
+
+        latex_steps = [_step("Input ricevuto", latex_input)]
+        if latex_exp: latex_steps.append(_step("Equazione espansa", latex_exp))
+        
+        new_steps, sol_gen_final = genera_passaggi(eq, tipo_key, ordine, var_sym, total_sol, sol_part_cauchy, condizioni if not use_generic else None)
+        latex_steps += new_steps
+        
+        stab_str = "asintoticamente stabile"
+        try:
+            r_sym = symbols('r')
+            eq_h = expand(eq.lhs)
+            coeffs = {}
+            def get_c(expr):
+                if isinstance(expr, sp.Add):
+                    for t in expr.args: get_c(t)
+                else:
+                    c, r = expr.as_coeff_Mul()
+                    for f in (r.args if isinstance(r, sp.Mul) else [r]):
+                        if isinstance(f, Function('y')):
+                            s = int(simplify(f.args[0] - var_sym))
+                            coeffs[s] = c * (expr / f / c)
+            get_c(eq_h)
+            m = min(coeffs.keys())
+            cp = sum(coeffs.get(i, 0) * r_sym**(i-m) for i in coeffs)
+            roots = sp.roots(cp, r_sym)
+            for r, mol in roots.items():
+                rho = Abs(r).evalf()
+                if rho > 1: stab_str = "instabile"; break
+                if rho == 1:
+                    if mol > 1: stab_str = "instabile"; break
+                    stab_str = "marginalmente stabile"
+        except: stab_str = "non determinata"
+
         calc_time = round((time.time() - start_time) * 1000, 2)
         
-        # Sostituzione formale di C0, C1
-        sol_gen_clean = sol_gen
-        const_idx = 1
-        for sym in sol_gen.free_symbols:
-            if str(sym).startswith('C') and str(sym)[1:].isdigit():
-                sol_gen_clean = sol_gen_clean.subs(sym, symbols(f'C_{const_idx}'))
-                const_idx += 1
-                
         return {
-            "success": True, 
+            "success": True,
             "latex": latex_steps,
             "ordine": ordine,
             "tipo": tipo_key,
             "nome_tipo": nome_tipo,
             "variabile": str(var_sym),
-            "soluzione_generale": latex(simplify(sol_gen_clean)),
-            "soluzione_particolare": latex(simplify(sol_part)) if sol_part else None,
+            "soluzione_generale": latex(simplify(sol_gen_final)),
+            "soluzione_particolare": latex(simplify(sol_part_cauchy)) if sol_part_cauchy else None,
+            "stabilita": stab_str,
             "tempo_calcolo": calc_time
         }
     except Exception as e:
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
-def _cauchy_manuale(sol_gen, cond, var_sym):
-    consts = sorted(
-        [s for s in sol_gen.free_symbols 
-         if str(s).startswith('C') and str(s)[1:].isdigit()],
-        key=lambda s: int(str(s)[1:])
-    )
-    
-    eqs = []
-    for i in range(10):
-        if f'y{i}' in cond:
-            eqs.append(Eq(sol_gen.subs(var_sym, i), cond[f'y{i}']))
-            
-    if len(eqs) != len(consts):
-        return sol_gen # Non completamente determinata
-        
-    sol = solve(eqs, consts, dict=True)
-    if sol:
-        return simplify(sol_gen.subs(sol[0]))
-    return None
-
 def _parse_valore(s):
     s = s.strip().replace('^', '**')
-    return parse_expr(s, local_dict={'e': sp.E, 'pi': pi, 'Rational': Rational},
-                      transformations=_transformations)
+    return parse_expr(s, local_dict={'e': sp.E, 'pi': pi, 'Rational': Rational}, transformations=_transformations)
 
-# ═══════════════════ ENDPOINT API ═══════════════════
 @equazioni_alle_differenze_bp.route('/api/equazioni_alle_differenze', methods=['POST'])
 def api_eq_alle_differenze():
     data = request.get_json()
-    equazione = data.get("equazione", "").strip()
-    if not equazione:
-        return jsonify({"success": False, "error": "Nessuna equazione fornita."})
-        
+    eq = data.get("equazione", "").strip()
+    if not eq: return jsonify({"success": False, "error": "Nessuna equazione fornita."})
+    
+    use_generic = data.get("generic_conditions", True)
     condizioni = {}
     try:
-        # Può ricevere y0, y1, y2...
-        for i in range(10):
+        for i in range(5):
             val = data.get(f"y{i}", "").strip()
-            if val:
-                condizioni[f"y{i}"] = _parse_valore(val)
+            if val: condizioni[f"y{i}"] = _parse_valore(val)
     except Exception as e:
-        return jsonify({"success": False, "error": f"Errore condizioni iniziali: {e}"})
+        return jsonify({"success": False, "error": f"Errore condizioni: {e}"})
         
-    return jsonify(risolvi_eq_alle_differenze(equazione, condizioni or None))
-
-# ═══════════════════ WRAPPER RETROCOMPATIBILE ═══════════════════
-def solve_difference_equation(equation_str, conditions=None):
-    try:
-        return risolvi_eq_alle_differenze(equation_str, conditions)
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+    return jsonify(risolvi_eq_alle_differenze(eq, condizioni or None, use_generic))
