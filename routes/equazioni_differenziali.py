@@ -17,6 +17,25 @@ _transformations = standard_transformations + (implicit_multiplication_applicati
 
 DEBUG = False  # Imposta a True per log dettagliati
 
+def _fix_power_syntax(testo):
+    """
+    Converte tutte le potenze con parentesi tonde in parentesi graffe per LaTeX.
+    Esempi:
+    - d^(2) -> d^{2}
+    - y^(n+1) -> y^{n+1}
+    """
+    # Caso 1: ^(espressione_semplice) senza parentesi annidate
+    testo = re.sub(r'\^\(([a-zA-Z0-9+\-*/]+)\)', r'^{\1}', testo)
+    
+    # Caso 2: Gestisci parentesi annidate con approccio iterativo
+    while '^(' in testo:
+        testo_pre = testo
+        # Trova ^(contenuto_senza_parentesi_interne)
+        testo = re.sub(r'\^\(([^()]+)\)', r'^{\1}', testo)
+        if testo == testo_pre:
+            break
+    return testo
+
 def _log(msg):
     if DEBUG:
         print(f"[ODE DEBUG] {msg}")
@@ -57,7 +76,7 @@ def _detect_var(testo):
     clean = re.sub(r'(sin|cos|tan|sqrt|exp|text|latex|log|ln)\b', '', testo)
     if re.search(r'\bt\b', clean):
         return 't'
-    return 'x'
+    return 't'  # Forza 't' come default
 
 def _normalize_variables(testo, var_target):
     """
@@ -76,12 +95,23 @@ def _get_symbols(var_name):
 # ═══════════════════ PREPROCESSING INPUT ═══════════════════
 def _normalize(testo):
     s = testo.strip()
+    # CORREZIONE: se veniamo da _fix_power_syntax, riportiamo le graffe in tonde per SymPy
+    # ma solo se precedute da ^ per evitare di rompere set o altro
+    s = re.sub(r'\^\{([^}]+)\}', r'^(\1)', s)
+    # Se ci sono ancora graffe residue (non precedute da ^), le normalizziamo in tonde
+    s = s.replace('{', '(').replace('}', ')')
+    
     s = s.replace('\\Delta', 'Δ').replace('Δ', 'd')
     s = s.replace('∘', ' ')
     s = s.replace('·', '*')
     
-    # Rimuove spazi intorno all'esponente per evitare errori di parsing in d^(n)
+    # Rimuove spazi intorno all'esponente
     s = re.sub(r'\s*\^\s*\(', '^(', s)
+    
+    # FIX: Gestione specifica operatori d, Δ con potenze (es. d^(2) -> (d)**2)
+    s = re.sub(r'\b([dΔ])\s*\^?\s*\(?(\d+|[nkxtm])\)?', r'(\1)**\2', s)
+    
+    # Sostituzione residua ^ -> **
     s = s.replace('^', '**')
     
     # Unicode superscript esteso
@@ -168,6 +198,9 @@ def _parse_rhs(rhs_str, var_sym):
 
 # ═══════════════════ SANITIZZAZIONE LATEX ═══════════════════
 def sanitize_latex(s):
+    # PRIMO PASSAGGIO: fissa le potenze per il rendering
+    s = _fix_power_syntax(s)
+    
     s = s.replace('Δ', r'\Delta ')
     s = s.replace('∘', r'\circ ')
     s = s.replace('**', '^')
@@ -244,15 +277,18 @@ def _parse_ode_side(s, var_sym):
     return parse_expr(s, local_dict=local, transformations=_transformations)
 
 def parsifica_input(testo):
-    _log(f"Input originale: {testo}")
     testo_orig = testo.strip()
+    
+    # PRIMO PASSAGGIO: fissa le potenze per il rendering LaTeX dell'input originale
+    testo_orig = _fix_power_syntax(testo_orig)
+    
+    _log(f"Input originale: {testo_orig}")
     var_name = _detect_var(testo_orig)
     var_sym = symbols(var_name, real=True)
     
-    # Normalizza le variabili (x <-> t) in base a quella rilevata
-    testo_orig = _normalize_variables(testo_orig, var_name)
-    
-    testo_norm = _normalize(testo_orig)
+    # Normalizza SUBITO tutte le occorrenze
+    testo_norm = _normalize_variables(testo_orig, var_name)
+    testo_norm = _normalize(testo_norm)
     _log(f"Normalizzato: {testo_norm}")
     latex_sanitized = sanitize_latex(testo_orig)
     
@@ -323,6 +359,7 @@ def _verifica_soluzione(eq, sol, var_sym, ordine):
     return diff_simplified == 0, diff_simplified
 
 def _analyze_forcing_term(term, var_sym):
+    """Analizza un termine forzante per estrarre lambda e grado polinomiale."""
     term = expand(term)
     if not term.has(var_sym):
         return sp.Integer(0), 0
@@ -342,7 +379,7 @@ def _analyze_forcing_term(term, var_sym):
         elif isinstance(f, sp.exp):
             arg = f.args[0]
             p = diff(arg, var_sym)
-        elif isinstance(f, sp.sin) or isinstance(f, sp.cos):
+        elif isinstance(f, (sp.sin, sp.cos)):
             arg = f.args[0]
             omega = diff(arg, var_sym)
             
@@ -399,8 +436,10 @@ def genera_passaggi(eq, tipo_key, ordine, var_sym, sol_gen, sol_part=None, cond=
     
     sol_gen_iniziale = sol_gen
     if 'nth_linear_constant_coeff' in tipo_key or 'linear_constant' in tipo_key:
-        new_steps, sol_gen = _steps_coeff_costanti(eq, ordine, var_sym, y_sym, sol_gen)
+        new_steps, sol_gen, sol_part_manuale = _steps_coeff_costanti(eq, ordine, var_sym, y_sym, sol_gen)
         steps += new_steps
+        if sol_part_manuale:
+            sol_part = sol_part_manuale
         # Se la soluzione generale è stata aggiornata, ricalcoliamo la particolare (Cauchy) se necessario
         if sol_gen != sol_gen_iniziale and cond:
             try:
@@ -451,14 +490,18 @@ def genera_passaggi(eq, tipo_key, ordine, var_sym, sol_gen, sol_part=None, cond=
             sol_gen_sub = sol_gen.subs(sol_dict)
             sol_gen_sub = _clean_ode_sol(sol_gen_sub, var_sym)
             
-            y_syms = [symbols(f'y_{i}') for i in range(ordine)]
-            y_libera = sp.Integer(0)
+            # BUG #2: Separazione CORRETTA tra soluzione libera e forzata
+            # y_forzata = soluzione particolare (solo termine forzante)
+            # y_libera = soluzione omogenea (con costanti determinate dalle c.i.)
             
-            for y_i in y_syms:
-                coeff = sp.diff(sol_gen_sub, y_i)
-                y_libera += coeff * y_i
+            # Se non abbiamo sol_part, proviamo a estrarla dalla soluzione generale
+            if sol_part is None:
+                consts_in_sol = _get_constants(sol_gen_sub)
+                y_forzata = simplify(sol_gen_sub.subs({c: 0 for c in consts_in_sol}))
+            else:
+                y_forzata = sol_part
                 
-            y_forzata = _clean_ode_sol(sol_gen_sub - y_libera, var_sym)
+            y_libera = simplify(sol_gen_sub - y_forzata)
             
             steps.extend(generic_steps)
             steps.append(_step("Soluzione con costanti esplicitate", 
@@ -466,7 +509,7 @@ def genera_passaggi(eq, tipo_key, ordine, var_sym, sol_gen, sol_part=None, cond=
                 
             if y_forzata != 0 and y_libera != 0:
                 steps.append(_step("Separazione", 
-                    rf"\begin{{align}} y_{{\text{{libera}}}}({var_sym}) &= {latex(y_libera)} \\ y_{{\text{{forzata}}}}({var_sym}) &= {latex(y_forzata)} \end{{align}}"))
+                    rf"\begin{{align*}} y_{{\text{{libera}}}}({var_sym}) &= {latex(y_libera)} \\ y_{{\text{{forzata}}}}({var_sym}) &= {latex(y_forzata)} \end{{align*}}"))
             elif y_libera != 0:
                 steps.append(_step("Componenti della soluzione", 
                     rf"y({var_sym}) = y_{{\text{{libera}}}}({var_sym}) = {latex(y_libera)}"))
@@ -513,63 +556,41 @@ def _steps_coeff_costanti(eq, ordine, var_sym, y_sym, sol_gen):
     rad_str = ", ".join(rad_strs)
     steps.append(_step("Radici", rad_str))
     
-    try:
-        sol_omogenea = dsolve(Eq(eq.lhs, 0), y_sym).rhs
-    except:
-        sol_omogenea = sp.Integer(0)
+    # BUG #1: Costruisci la soluzione omogenea con convenzione C1*cos + C2*sin
+    def _build_homog_solution(rad_dict, v_sym):
+        terms = []
+        curr_idx = 1
+        # Ordiniamo le radici: reali prima, poi complesse (parte imm positiva)
+        sorted_rads = sorted(rad_dict.items(), key=lambda x: (sp.im(x[0]) != 0, sp.re(x[0]), sp.im(x[0])))
         
-    if ordine >= 2:
-        # Analizza le radici e la loro molteplicità
-        radici_list = [simplify(r) for r in radici_list]
-        conteggio = Counter(radici_list)
-        
-        # Costruisci la soluzione omogenea
-        termini = []
-        for r, molt in conteggio.items():
-            if sp.im(r) == 0:
-                # Radice reale
-                if molt == 1:
-                    termini.append(rf"C_{{{len(termini)+1}}} e^{{{latex(r)}{v}}}")
-                else:
-                    # Radice reale multipla
-                    for k in range(molt):
-                        idx = len(termini) + 1
-                        if k == 0:
-                            termini.append(rf"C_{{{idx}}} e^{{{latex(r)}{v}}}")
-                        else:
-                            termini.append(rf"C_{{{idx}}} {v}^{{{k}}} e^{{{latex(r)}{v}}}")
+        proc_complex = set()
+        for r_val, mol_val in sorted_rads:
+            if sp.im(r_val) == 0:
+                for k in range(mol_val):
+                    t = sp.exp(r_val * v_sym)
+                    if k > 0: t *= v_sym**k
+                    terms.append(symbols(f'C_{curr_idx}') * t)
+                    curr_idx += 1
             else:
-                # Radice complessa (e sua coniugata)
-                if r == sp.conjugate(r) or sp.im(r) < 0:
-                    continue  # Processa solo la radice con parte immaginaria positiva
-                a = sp.re(r)
-                b = sp.Abs(sp.im(r))
-                if molt == 1:
-                    if a == 0:
-                        idx = len(termini) + 1
-                        termini.append(rf"C_{{{idx}}} \cos({latex(b)}{v}) + C_{{{idx+1}}} \sin({latex(b)}{v})")
-                    else:
-                        idx = len(termini) + 1
-                        termini.append(rf"e^{{{latex(a)}{v}}}\left(C_{{{idx}}} \cos({latex(b)}{v}) + C_{{{idx+1}}} \sin({latex(b)}{v})\right)")
-                else:
-                    # Radici complesse multiple (molto raro ma coperto)
-                    for k in range(molt):
-                        prefix = ""
-                        if k > 0: prefix = rf"{v}^{{{k}}} "
-                        idx = len(termini) + 1
-                        if a == 0:
-                            termini.append(rf"{prefix}\left(C_{{{idx}}} \cos({latex(b)}{v}) + C_{{{idx+1}}} \sin({latex(b)}{v})\right)")
-                        else:
-                            termini.append(rf"{prefix}e^{{{latex(a)}{v}}}\left(C_{{{idx}}} \cos({latex(b)}{v}) + C_{{{idx+1}}} \sin({latex(b)}{v})\right)")
+                if r_val in proc_complex or sp.conjugate(r_val) in proc_complex:
+                    continue
+                proc_complex.add(r_val)
+                alpha_val = sp.re(r_val)
+                beta_val = sp.Abs(sp.im(r_val))
+                for k in range(mol_val):
+                    pref = sp.exp(alpha_val * v_sym)
+                    if k > 0: pref *= v_sym**k
+                    # CONVENZIONE STANDARD: C1 con coseno, C2 con seno
+                    c1_sym = symbols(f'C_{curr_idx}')
+                    c2_sym = symbols(f'C_{curr_idx+1}')
+                    terms.append(pref * (c1_sym * sp.cos(beta_val * v_sym) + c2_sym * sp.sin(beta_val * v_sym)))
+                    curr_idx += 2
+        return sp.Add(*terms)
 
-        y_h_latex = " + ".join(termini).replace("+ -", "- ")
-        if y_h_latex:
-            steps.append(_step("Soluzione omogenea", rf"y_o({v}) = {y_h_latex}"))
-        else:
-            steps.append(_step("Soluzione omogenea", rf"y_o({v}) = {latex(sol_omogenea)}"))
-    else:
-        steps.append(_step("Soluzione omogenea", rf"y_o({v}) = {latex(sol_omogenea)}"))
+    sol_omogenea = _build_homog_solution(radici_dict, var_sym)
+    steps.append(_step("Soluzione omogenea", rf"y_o({v}) = {latex(sol_omogenea)}"))
     
+    sol_part_manuale = None
     f_t = eq.rhs
     if f_t != 0 and not sp.simplify(f_t).is_zero:
         steps.append(_step("Termine forzante", rf"f({v}) = {latex(f_t)}"))
@@ -598,10 +619,18 @@ def _steps_coeff_costanti(eq, ordine, var_sym, y_sym, sol_gen):
         
         for lambda_val, terms in term_groups.items():
             max_deg = max([_analyze_forcing_term(t, var_sym)[1] for t in terms])
+            p = sp.re(lambda_val)
+            omega = sp.Abs(sp.im(lambda_val))
             
+            # Controlla risonanza: lambda_val (o coniugato) coincide con una radice?
             k = 0
             for r, m in radici_dict.items():
-                if simplify(r - lambda_val) == 0 or simplify(r - sp.conjugate(lambda_val)) == 0:
+                if simplify(r - lambda_val) == 0:
+                    k = max(k, m)
+                elif simplify(r - sp.conjugate(lambda_val)) == 0:
+                    k = max(k, m)
+                # Aggiungi controllo per radici puramente immaginarie come richiesto
+                elif omega != 0 and simplify(sp.re(r)) == 0 and simplify(sp.Abs(sp.im(r)) - omega) == 0:
                     k = max(k, m)
             
             resonance_factor = var_sym**k if k > 0 else sp.Integer(1)
@@ -610,10 +639,8 @@ def _steps_coeff_costanti(eq, ordine, var_sym, y_sym, sol_gen):
                 steps.append(_step("Risonanza rilevata", 
                     rf"\text{{Per termini con }} \lambda = {latex(lambda_val)} \text{{ c'è risonanza (molteplicità }} {k} \text{{). Si moltiplica per }} {v}^{{{k}}}\text{{.}}"))
                     
-            p = sp.re(lambda_val)
-            omega = sp.Abs(sp.im(lambda_val))
-            
             if omega != 0:
+                # Termine sinusoidale
                 Q_n = sp.Integer(0)
                 R_n = sp.Integer(0)
                 for i in range(max_deg, -1, -1):
@@ -624,19 +651,23 @@ def _steps_coeff_costanti(eq, ordine, var_sym, y_sym, sol_gen):
                     Sr = syms_abc[idx_sym % len(syms_abc)]
                     idx_sym += 1
                     R_n += Sr * (var_sym**i)
-                yp_assumed = (Q_n * sp.cos(omega*var_sym) + R_n * sp.sin(omega*var_sym))
+                
+                yp_assumed = (Q_n * sp.cos(omega * var_sym) + R_n * sp.sin(omega * var_sym))
                 if p != 0:
-                    yp_assumed = yp_assumed * sp.exp(p*var_sym)
+                    yp_assumed = yp_assumed * sp.exp(p * var_sym)
             else:
+                # Termine polinomiale o esponenziale
                 P_n = sp.Integer(0)
                 for i in range(max_deg, -1, -1):
                     S = syms_abc[idx_sym % len(syms_abc)]
                     idx_sym += 1
                     P_n += S * (var_sym**i)
+                
                 yp_assumed = P_n
                 if p != 0:
-                    yp_assumed = yp_assumed * sp.exp(p*var_sym)
-                    
+                    yp_assumed = yp_assumed * sp.exp(p * var_sym)
+            
+            # Applica fattore di risonanza
             yp_assumed = yp_assumed * resonance_factor
             yp_assumed_total += yp_assumed
             
@@ -715,16 +746,17 @@ def _steps_coeff_costanti(eq, ordine, var_sym, y_sym, sol_gen):
                             rf"y_p({v}) = {latex(y_p_calcolata)}"))
                         
                         # Aggiorna sol_gen per i passaggi successivi
+                        sol_part_manuale = y_p_calcolata
                         sol_gen = sol_omogenea + y_p_calcolata
                         risolto_manualmente = True
             except Exception as e:
                 _log(f"Errore risoluzione manuale yp: {e}")
 
         if not risolto_manualmente:
-            y_p = _clean_ode_sol(sol_gen - sol_omogenea, var_sym)
-            steps.append(_step("Soluzione particolare determinata", rf"y_p({v}) = {latex(y_p)}"))
+            sol_part_manuale = _clean_ode_sol(sol_gen - sol_omogenea, var_sym)
+            steps.append(_step("Soluzione particolare determinata", rf"y_p({v}) = {latex(sol_part_manuale)}"))
 
-    return steps, sol_gen
+    return steps, sol_gen, sol_part_manuale
 
 # ═══════════════════ RISOLUTORE PRINCIPALE ═══════════════════
 def risolvi_equazione_differenziale(input_utente, condizioni=None):
