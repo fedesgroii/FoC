@@ -27,15 +27,17 @@
       max-width: 800px;
       background: var(--kb-bg);
       backdrop-filter: blur(15px);
-      border-top: 1px solid rgba(255,255,255,0.1);
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 20px 20px 0 0;
       padding: 15px;
-      box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
+      box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
       z-index: 2000;
       transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    .math-keyboard.hidden { transform: translate(-50%, 100%); }
+    .math-keyboard.hidden {
+      transform: translate(-50%, 100%);
+    }
 
     .keyboard-header {
       display: flex;
@@ -45,7 +47,12 @@
       color: var(--text-main);
     }
 
-    .keyboard-row { display: flex; gap: 8px; margin-bottom: 8px; justify-content: center; }
+    .keyboard-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+      justify-content: center;
+    }
 
     .math-key {
       flex: 1;
@@ -61,13 +68,33 @@
       justify-content: center;
     }
 
-    .math-key:hover { background: var(--key-hover); }
-    .math-key.fn { color: var(--accent-blue); }
-    .math-key.var { color: var(--accent-purple); font-style: italic; }
-    .math-key.op { background: rgba(56, 189, 248, 0.1); color: var(--accent-blue); }
-    .math-key.ctrl { background: rgba(239, 68, 68, 0.1); color: #f87171; }
-    .math-key.wide { flex: 2; }
-    
+    .math-key:hover {
+      background: var(--key-hover);
+    }
+
+    .math-key.fn {
+      color: var(--accent-blue);
+    }
+
+    .math-key.var {
+      color: var(--accent-purple);
+      font-style: italic;
+    }
+
+    .math-key.op {
+      background: rgba(56, 189, 248, 0.1);
+      color: var(--accent-blue);
+    }
+
+    .math-key.ctrl {
+      background: rgba(239, 68, 68, 0.1);
+      color: #f87171;
+    }
+
+    .math-key.wide {
+      flex: 2;
+    }
+
     .kb-toggle {
       background: var(--accent-blue);
       color: white;
@@ -80,11 +107,12 @@
       vertical-align: middle;
       transition: all 0.3s ease;
     }
-    
+
     .kb-toggle.inactive {
       background: #6c757d;
       opacity: 0.7;
     }
+
     .delta-row {
       display: flex;
       align-items: center;
@@ -165,9 +193,17 @@
 
 
     <div style="margin-top: 20px; text-align: center;">
+      <h4>Ingresso Esterno (Opzionale)</h4>
+      <span style="font-size: 20px; margin: 0 10px;">\( u(t) = \)</span>
+      <input id="inputExprInput" type="text" placeholder="es. 5^t"
+        style="width: 200px; font-size: 18px; text-align: center; padding: 5px;" readonly>
+      <p style="font-size: 0.85rem; color: #666; margin-top: 5px;">Se specificato, questo termine verrà sottratto dall'equazione e trattato come ingresso.</p>
+    </div>
+
+    <div style="margin-top: 20px; text-align: center;">
       <h4>Equazione</h4>
       <span style="font-size: 20px; margin: 0 10px;">\( y(t) = \)</span>
-      <input id="equationInput" type="text" placeholder="es. d(t-1)*c1+d(t)*c2"
+      <input id="equationInput" type="text" placeholder="es. d(t-1)*c1 + 5^t"
         style="width: 350px; font-size: 18px; text-align: center; padding: 5px;" readonly>
       <button class="kb-toggle" onclick="toggleKeyboardMode()" title="Attiva/Disattiva tastiera matematica">⌨️</button>
     </div>
@@ -190,7 +226,7 @@
         <span style="font-weight: bold; margin-left: 10px;">Tastiera Matematica</span>
         <button onclick="toggleKeyboard()" class="btn btn-sm btn-outline-danger">Chiudi</button>
       </div>
-      
+
       <div class="keyboard-body">
         <div class="keyboard-row">
           <button class="math-key fn" onclick="insertMath('d(')">d(t)</button>
@@ -257,7 +293,7 @@
         `;
 
         // Aggiungi listener per la tastiera
-        row.querySelector('.time-expr').addEventListener('focus', function() {
+        row.querySelector('.time-expr').addEventListener('focus', function () {
           if (isKeyboardActive) {
             activeInput = this;
             document.getElementById('math-keyboard').classList.remove('hidden');
@@ -295,6 +331,7 @@
         });
 
         const equation = document.getElementById("equationInput").value.trim();
+        const inputExpr = document.getElementById("inputExprInput").value.trim();
 
         if (deltaSpecs.length === 0) {
           output.innerHTML = `<p style="color:red; text-align:center;">Inserire almeno una funzione Delta</p>`;
@@ -312,7 +349,8 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             delta_specs: deltaSpecs,
-            equation: equation
+            equation: equation,
+            input_expr: inputExpr
           })
         })
           .then(async r => {
@@ -324,66 +362,66 @@
             return r.json();
           })
           .then(res => {
-              if (!res.success) {
-                output.innerHTML = `<p style="color:red; text-align:center;">${res.error || "Errore sconosciuto"}</p>`;
-              } else {
-                output.innerHTML = "";
-                const data = res.data;
+            if (!res.success) {
+              output.innerHTML = `<p style="color:red; text-align:center;">${res.error || "Errore sconosciuto"}</p>`;
+            } else {
+              output.innerHTML = "";
+              const data = res.data;
 
-                // 1. EQUAZIONE FINALE E MATRICI (RIASSUNTO) - PRIMA COSA CHE SI VEDE
-                let summaryHtml = "";
-                
-                if (data.difference_equation) {
-                  summaryHtml += `
+              // 1. EQUAZIONE FINALE E MATRICI (RIASSUNTO) - PRIMA COSA CHE SI VEDE
+              let summaryHtml = "";
+
+              if (data.difference_equation) {
+                summaryHtml += `
                     <div style="margin-bottom: 30px;">
                       ${data.difference_equation}
                     </div>
                   `;
-                }
+              }
 
-                if (data.matrices) {
-                  summaryHtml += `
+              if (data.matrices) {
+                summaryHtml += `
                     <div style="margin-top: 20px; padding: 25px; border: 2px solid #28a745; border-radius: 12px; background-color: #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
                         <h3 style="text-align: center; color: #28a745; margin-bottom: 25px; text-transform: uppercase; letter-spacing: 1px;">Rappresentazione in Spazio di Stato</h3>
                         <div>${data.matrices}</div>
                     </div>
                   `;
-                }
+              }
 
-                if (summaryHtml) {
-                  output.innerHTML += `
+              if (summaryHtml) {
+                output.innerHTML += `
                     <div id="result-summary" style="margin-bottom: 50px;">
                       <h2 style="text-align: center; color: #333; margin-bottom: 30px; font-weight: bold;">Risultato Finale</h2>
                       ${summaryHtml}
                       <hr style="margin: 40px 0; border-top: 3px double #bbb;">
                     </div>
                   `;
-                }
+              }
 
-                // 2. PASSAGGI DETTAGLIATI
-                if (data.steps && Array.isArray(data.steps)) {
-                  output.innerHTML += `<h2 style="text-align: center; color: #555; margin-bottom: 30px;">Svolgimento Passo-Passo</h2>`;
-                  let stepCounter = 1;
-                  data.steps.forEach((step) => {
-                    let contentHtml = step.is_html ? step.content : `<p class="centered-math">\\[${step.content}\\]</p>`;
-                    output.innerHTML += `
+              // 2. PASSAGGI DETTAGLIATI
+              if (data.steps && Array.isArray(data.steps)) {
+                output.innerHTML += `<h2 style="text-align: center; color: #555; margin-bottom: 30px;">Svolgimento Passo-Passo</h2>`;
+                let stepCounter = 1;
+                data.steps.forEach((step) => {
+                  let contentHtml = step.is_html ? step.content : `<p class="centered-math">\\[${step.content}\\]</p>`;
+                  output.innerHTML += `
                       <div class="step-container" style="margin-bottom: 30px; padding: 15px; border-left: 4px solid #007bff; background: #fcfcfc;">
                         <p class="step-title" style="font-size: 1.1rem; color: #007bff;"><b>Passaggio ${stepCounter++}:</b> ${step.title}</p>
                         ${contentHtml}
                       </div>
                     `;
-                  });
-                }
+                });
+              }
 
-                // 3. VARIABILI DI STATO (Se non incluse nei passaggi)
-                if (data.state_variables && !output.innerHTML.includes(data.state_variables)) {
-                  output.innerHTML += `
+              // 3. VARIABILI DI STATO (Se non incluse nei passaggi)
+              if (data.state_variables && !output.innerHTML.includes(data.state_variables)) {
+                output.innerHTML += `
                     <div style="margin-top: 30px; padding: 15px; border: 1px solid #dee2e6; border-radius: 8px; background: #f8f9fa;">
                         <h4 style="text-align: center;">Legenda Variabili di Stato</h4>
                         <div style="font-size: 1.1em; display: flex; justify-content: center;">${data.state_variables}</div>
                     </div>
                   `;
-                }
+              }
 
               MathJax.typesetPromise([output]);
             }
@@ -392,7 +430,7 @@
             output.innerHTML = `<p style="color:red; text-align:center;">${err.message || "Errore sconosciuto"}</p>`;
           });
       }
-  
+
       // --- LOGICA TASTIERA ---
       let isKeyboardActive = true;
       let activeInput = null;
@@ -458,7 +496,14 @@
       }
 
       // Listener per input equazione
-      document.getElementById("equationInput").addEventListener("focus", function() {
+      document.getElementById("equationInput").addEventListener("focus", function () {
+        if (isKeyboardActive) {
+          activeInput = this;
+          document.getElementById('math-keyboard').classList.remove('hidden');
+        }
+      });
+
+      document.getElementById("inputExprInput").addEventListener("focus", function () {
         if (isKeyboardActive) {
           activeInput = this;
           document.getElementById('math-keyboard').classList.remove('hidden');
