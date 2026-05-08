@@ -48,6 +48,10 @@ def da_soluzione_a_sistema():
 def fratti_semplici():
     return render_template("fratti_semplici.html")
 
+@app.route("/sistemi_meccanici.html")
+def sistemi_meccanici():
+    return render_template("sistemi_meccanici.html")
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     # debug=False è obbligatorio quando si usa gunicorn in produzione
